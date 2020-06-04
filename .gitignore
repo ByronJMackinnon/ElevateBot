@@ -5,6 +5,7 @@ __pycache__/
 
 # Custom Ignores
 botToken.py
+config.py
 *.db
 
 # C extensions
