@@ -6,7 +6,7 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        await dbupdate('data.db', 'INSERT INTO players (ID, Name, MMR, Team, Logo) VALUES (?, ?, ?, ?, ?)', (member.id, f"{member.name}#{member.discriminator}", None, None, member.avatar_url,))
+        await DBInsert.member(member)
 
         await dbupdate('data.db', 'UPDATE stats SET Members=?', (member.guild.member_count,))
 

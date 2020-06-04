@@ -67,6 +67,8 @@ class Verify(commands.Cog):
 
         await dbupdate("data.db", "UPDATE stats SET Players=Players+1", ())
 
+        await dbupdate("data.db", "UPDATE players SET URL=? WHERE ID=?", (url, ctx.author.id,))
+
 
 def setup(bot):
     bot.add_cog(Verify(bot))
