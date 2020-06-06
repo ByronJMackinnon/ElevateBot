@@ -36,11 +36,14 @@ class Teams(commands.Cog):
                 embed.add_field(name="MMR:", value=player.team.mmr)
                 embed.add_field(name="Stats:", value=f'Wins: {player.team.wins}\nLosses: {player.team.losses}\nTotal Games: {player.team.wins + player.team.losses}', inline=False)
                 embed.set_thumbnail(url=player.team.logo)
-            embed.set_author(name=player.name, icon_url=ctx.author.avatar_url)
+            embed.set_author(name=player.name, icon_url=tx.author.avatar_url)
             await ctx.send(embed=embed)
 
     @_team.command(name='create')
     async def _team_create(self, ctx, *, team_name):
+        if config.team_member_id in [role.id for role in ctx.author.roles]:
+            await ctx.send("I'm sorry, you are already in a team. Please leave your current team before creating a new one.")
+            return
         await DBInsert().team(ctx, team_name)
 
     @_team.command(name='add')

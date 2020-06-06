@@ -38,3 +38,20 @@ async def dbupdate(db, sql, variables):  # Helper function for updating informat
     await db.commit()
     await cursor.close()
     await db.close()
+
+
+async def team_average(teamID):
+    players = await dbselect('data.db', "SELECT Player1, Player2, Player3, Player4, Player5 FROM teams WHERE ID=?", (teamID,))
+
+    players = list(filter(None, players))
+
+    mmrs = []
+
+    for player in players:
+        mmr = await dbselect('data.db', "SELECT MMR FROM players WHERE ID=?", (player,))
+        mmrs.append(mmr)
+
+    average = round(sum(mmrs) / len(mmrs))
+
+    await dbupdate('data.db', "UPDATE teams SET MMR=? WHERE ID=?", (average, teamID,))
+    return average

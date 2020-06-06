@@ -7,7 +7,7 @@ from discord.utils import get
 
 # Custom Imports
 import config
-from custom_functions import dbupdate, dbselect
+from custom_functions import dbupdate, dbselect, team_average
 
 class Player(object):  # Helper Object for Player Database Management
     def __init__(self, member):
@@ -51,7 +51,8 @@ class Team(object):  # Helper Object for Team Database Management
         self.wins = wins
         self.losses = losses
         self.logo = logo
-        self.players = [self.p1, self.p2, self.p3, self.p4, self.p5]
+        players = [self.p1, self.p2, self.p3, self.p4, self.p5]
+        self.players = list(filter(None, players))
 
     async def add_player(self, member):  # Adds player to team in database and gives player proper discord roles.
         captain = get(member.guild.members, id=self.p1)
@@ -76,7 +77,12 @@ class Team(object):  # Helper Object for Team Database Management
             while len(players) < 5:
                 players.append(None)
 
+            # Give player the Team ID in the players table when being added to a team.
+            await dbupdate('data.db', "UPDATE players SET Team=? WHERE ID=?", (self.id, member.id,))
+
             await dbupdate('data.db', "UPDATE teams SET Player1=?, Player2=?, Player3=?, Player4=?, Player5=? WHERE ID=?", (*players, self.id,))  # Adds player list to the roster in the database
+
+            await team_average(self.id)  # Calculates new average MMR for roster.
 
             # Gives the new member the "Team Member" role.
             team_member_role = get(member.guild.roles, id=config.team_member_role_id)
@@ -88,11 +94,11 @@ class Team(object):  # Helper Object for Team Database Management
 
     async def remove_player(self, member):  # Removes player to team in database and removes discord roles.
         captain = get(member.guild.members, id=self.p1)
+        players = list(filter(None, self.players))
+        team_member_role = get(member.guild.roles, id=config.team_member_role_id)
+        team_captain_role = get(member.guild.roles, id=config.team_captain_role_id)
 
         if member.id == captain.id:  # If the captain is the one leaving.
-            players = list(filter(None, self.players))
-            team_member_role = get(member.guild.roles, id=config.team_member_role_id)
-            team_captain_role = get(member.guild.roles, id=config.team_captain_role_id)
             await member.remove_roles(team_member_role, team_captain_role)  # Takes away discord roles
 
             if len(players) == 1:  # If captain was the only player on the team, it deletes it from database
@@ -109,11 +115,25 @@ class Team(object):  # Helper Object for Team Database Management
 
             await dbupdate('data.db', "UPDATE teams SET Player1=?, Player2=?, Player3=?, Player4=?, Player5=? WHERE ID=?", (*players, self.id,))  # Updates roster in the database
 
+            await team_average(self.id)  # Calculates new average MMR for roster.
+
             # Alert both the old captain and new captain about their change in postion.
             await new_captain.send(f"You are now the captain of {self.name}")
+            await member.send(f"You have been removed from {self.name}")
 
-        await member.send(f"You have been removed from {self.name}")
-        await captain.send(f"{member.mention} has been removed from {self.name}")
+        else:
+            players.remove(member.id)
+            while len(players) < 5:
+                players.append(None)
+
+            await dbupdate('data.db', "UPDATE teams SET Player1=?, Player2=?, Player3=?, Player4=?, Player5=? WHERE ID=?", (*players, self.id,))  # Updates roster in the database
+
+            await team_average(self.id)  # Calculates new average MMR for roster.
+
+            await member.remove_roles(team_member_role)
+
+            await member.send(f"You have been removed from {self.name}")
+            await captain.send(f"{member.mention} has been removed from {self.name}")
 
     async def edit_abbrev(ctx, abbrev):  # Edit teams abbreviation in the database and messages the captain
         captain = get(ctx.guild.members, id=self.p1)
@@ -136,6 +156,17 @@ class Team(object):  # Helper Object for Team Database Management
         await captain.send(f"{self.name}'s Abbreviation has been changed to [{abbrev.upper()}]")
 
     async def edit_name(ctx, name):    # Edit teams name in the database and messages the captain
+
+        async def team_in_database(name):  # Local function for checking existing teams.
+            check = await dbselect('data.db', "SELECT * FROM players WHERE Name=?", (name.title(),))
+            if check is None:
+                return False
+            return True
+
+        if team_in_database(name):
+            await ctx.author.send("I'm sorry, there is already a team by that name. Please pick another name.")
+            return
+
         captain = get(ctx.guild.members, id=self.p1)
 
         for character in name:  # Iterates through to ensure no special characters are being used.
@@ -171,6 +202,17 @@ class DBInsert(object):  # Helper Object for Modular addition of database fields
         await dbupdate('data.db', 'INSERT INTO players (ID, Name, MMR, Team, Logo, URL) VALUES (?, ?, ?, ?, ?, ?)', (member.id, f"{member.name}#{member.discriminator}", None, None, str(member.avatar_url), None))
 
     async def team(self, ctx, name):  # Inserts new entry into the 'teams' table in the database.
+
+        async def team_in_database(name):  # Local function for checking existing teams.
+            check = await dbselect('data.db', "SELECT * FROM players WHERE Name=?", (name.title(),))
+            if check is None:
+                return False
+            return True
+
+        if team_in_database(name):
+            await ctx.author.send("I'm sorry, there is already a team by that name. Please pick another name.")
+            return
+
         await dbupdate('data.db', "UPDATE stats SET TeamsRegistered=TeamsRegistered+1", ())  # Creates ID for Team
 
         id = await dbselect('data.db', "SELECT TeamsRegistered FROM stats", ())  # Grabs ID for team
@@ -180,11 +222,6 @@ class DBInsert(object):  # Helper Object for Modular addition of database fields
         mmr = await dbselect('data.db', "SELECT MMR FROM players WHERE ID=?", (ctx.author.id,))
         if mmr is None:
             await ctx.author.send("I'm sorry, you have to verify your rank before you can create a team! Please head over to the <#{config.verify_channel}> to do so.")
-            return
-
-        check = await dbselect('data.db', "SELECT Name FROM teams WHERE Name=?", (name.title(),))
-        if check is not None:
-            await ctx.author.send("It appears that another team by the same name has already registered their name. Please choose another team name.")
             return
 
         await dbupdate('data.db', "INSERT INTO teams (ID, Name, Abbreviation, Player1, Player2, Player3, Player4, Player5, MMR, Wins, Losses, Logo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (id, name.title(), abbrev, ctx.author.id, None, None, None, None, mmr, 0, 0, config.elevate_logo,))
