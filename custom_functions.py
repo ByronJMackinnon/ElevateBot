@@ -5,7 +5,7 @@ import typing
 import aiosqlite
 from discord.utils import get
 
-async def dbselect(db, sql, variables):
+async def dbselect(db, sql, variables):  # Helper function for grabbing information from database asynchronously.
     db = await aiosqlite.connect(db)
     cursor = await db.execute(sql, variables)
     row = await cursor.fetchone()
@@ -32,49 +32,9 @@ async def dbselect(db, sql, variables):
     return row
 
 
-async def dbupdate(db, sql, variables):
+async def dbupdate(db, sql, variables):  # Helper function for updating information from database asynchronously.
     db = await aiosqlite.connect(db)
     cursor = await db.execute(sql, variables)
     await db.commit()
     await cursor.close()
     await db.close()
-
-
-async def Player(member):
-    mmr, team, logo, url = await dbselect("data.db", "SELECT MMR, Team, Logo, URL FROM players WHERE ID=?", (member.id,))
-    Player.member = member
-    Player.name = f"{member.name}#{member.discriminator}"
-    Player.mmr = mmr
-    Player.team = team
-    Player.logo = logo
-    Player.url = url
-    if player.team is None:
-        pass
-    else:
-        team_id = Player.team
-        Player.team = await Team(int(team_id))
-    return player
-
-
-async def Team(id: int):
-    id, name, abbrev, p1, p2, p3, p4, p5, mmr, wins, losses, logo = await dbselect("data.db", "SELECT * FROM teams WHERE ID=?", (id,))
-
-    Team.id = id
-    Team.name = name
-    Team.abbrev = abbrev
-    Team.p1 = p1
-    Team.p2 = p2
-    Team.p3 = p3
-    Team.p4 = p4
-    Team.p5 = p5
-    Team.mmr = mmr
-    Team.wins = wins
-    Team.losses = losses
-    Team.logo = logo
-
-    ids = [Team.p1, Team.p2, Team.p3, Team.p4, Team.p5]
-    ids = list(filter(None, ids))  # Removes any "None" values.
-
-    Team.roster = ids
-
-    return Team

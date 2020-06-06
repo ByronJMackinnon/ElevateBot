@@ -4,7 +4,7 @@ from botToken import token
 
 
 bot = commands.Bot(command_prefix="!", owner_id=144051124272365569, case_insensitive=True)
-initial_extensions = ["cogs.verify", "cogs.test"]
+initial_extensions = ["cogs.verify", "cogs.teams", "cogs.events"]
 
 for extension in initial_extensions:
     try:

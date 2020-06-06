@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 from discord.utils import get
 
+import config
 from custom_functions import dbselect, dbupdate
 
 
@@ -13,7 +14,7 @@ class Verify(commands.Cog):
 
     @commands.command(name="verify")
     async def _verify(self, ctx, profile, platform=None):
-        await ctx.message.add_reaction('\U000023F3') # Hourglass Emoji
+        await ctx.message.add_reaction(config.waiting_emoji) # Hourglass Emoji
 
         # Platform handling
         ps_platforms = ['playstation', 'playstation4', 'ps4', 'ps']
@@ -48,22 +49,22 @@ class Verify(commands.Cog):
             spans = main.find_all('span')
         except AttributeError:
             await ctx.message.clear_reactions()
-            await ctx.message.add_reaction('\U0000274E')
+            await ctx.message.add_reaction(config.cross_emoji)
 
         ranks = [mmr.text for mmr in spans]
 
         try:
-            rank = ranks[4]
+            rank = ranks[4]  # Players 3's MMR
         except IndexError:
             await ctx.message.clear_reactions()
-            await ctx.message.add_reaction('\U0000274E')
+            await ctx.message.add_reaction(config.cross_emoji)
 
         # Database update
         await dbupdate('data.db', "UPDATE players SET MMR=? WHERE ID=?", (rank, ctx.author.id,))
 
         # Emoji / Message handling
         await ctx.message.clear_reactions()
-        await ctx.message.add_reaction('\U00002705')
+        await ctx.message.add_reaction(config.checkmark_emoji)
 
         await dbupdate("data.db", "UPDATE stats SET Players=Players+1", ())
 
