@@ -22,6 +22,8 @@ class Teams(commands.Cog):
 
     @commands.group(name='team')
     async def _team(self, ctx):
+        """Shows your current teams information."""
+
         if ctx.invoked_subcommand is None:
             player = Player(ctx.author)
             await player.get_stats()
@@ -36,12 +38,14 @@ class Teams(commands.Cog):
                 embed.add_field(name="MMR:", value=player.team.mmr)
                 embed.add_field(name="Stats:", value=f'Wins: {player.team.wins}\nLosses: {player.team.losses}\nTotal Games: {player.team.wins + player.team.losses}', inline=False)
                 embed.set_thumbnail(url=player.team.logo)
-            embed.set_author(name=player.name, icon_url=tx.author.avatar_url)
+            embed.set_author(name=player.name, icon_url=ctx.author.avatar_url)
             await ctx.send(embed=embed)
 
     @_team.command(name='create')
     async def _team_create(self, ctx, *, team_name):
-        if config.team_member_id in [role.id for role in ctx.author.roles]:
+        """Used to create a team."""
+
+        if config.team_member_role_id in [role.id for role in ctx.author.roles]:
             await ctx.send("I'm sorry, you are already in a team. Please leave your current team before creating a new one.")
             return
         await DBInsert().team(ctx, team_name)
@@ -49,6 +53,8 @@ class Teams(commands.Cog):
     @_team.command(name='add')
     @commands.check(is_team_captain)
     async def _team_add(self, ctx, member: discord.Member):
+        """Add a player to your team"""
+
         player = Player(ctx.author)
         await player.get_stats()
 
@@ -57,14 +63,23 @@ class Teams(commands.Cog):
     @_team.command(name='remove')
     @commands.check(is_team_captain)
     async def _team_remove(self, ctx, member: discord.Member):
+        """Removes player from team"""
+
         player = Player(ctx.author)
         await player.get_stats()
+
+        if member == ctx.author:
+            command = self.bot.get_command('team leave')
+            await ctx.invoke(command)
+            return
 
         await player.team.remove_player(member)
 
     @_team.command(name='leave')
     @commands.check(is_team_member)
     async def _team_leave(self, ctx):
+        """Removes yourself from the team."""
+
         player = Player(ctx.author)
         await player.get_stats()
 
@@ -73,25 +88,33 @@ class Teams(commands.Cog):
     @_team.group(name='edit')
     @commands.check(is_team_captain)
     async def _team_edit(self, ctx):
+        """Used to edit team information."""
+
         if ctx.invoked_subcommand is None:
             pass
 
     @_team_edit.command(name='abbrev', aliases=['abbreviation'])
     async def _team_edit_abbrev(self, ctx, abbrev):
+        """Edit your teams abbreviation"""
+
         player = Player(ctx.author)
         await player.get_stats()
 
-        await player.team.edit_abbrev(abbrev)
+        await player.team.edit_abbrev(ctx, abbrev)
 
     @_team_edit.command(name='name')
-    async def _team_edit_name(self, ctx, name):
+    async def _team_edit_name(self, ctx, *, name):
+        """Edits your teams name"""
+
         player = Player(ctx.author)
         await player.get_stats()
 
-        await player.team.edit_name(name)
+        await player.team.edit_name(ctx, name)
 
     @_team_edit.command(name='logo')
     async def _team_edit_logo(self, ctx, link = None):
+        """Edits your team logo"""
+
         if link is None:
             if len(ctx.message.attachments) == 0:
                 await ctx.author.send("I'm sorry, please send a photo with the command or paste a link to the photo.")
@@ -102,6 +125,31 @@ class Teams(commands.Cog):
         await player.get_stats()
 
         await player.team.edit_logo(ctx, link)
+
+    @_team_edit.command(name='owner')
+    async def _team_edit_owner(self, ctx, member: discord.Member):
+        """Transfer Ownership of Team."""
+
+        player = Player(ctx.author)
+        await player.get_stats()
+
+        if member.id not in player.team.players:
+            await ctx.author.send("You are only able to transfer ownership to someone on your team.")
+            return
+
+        players = player.team.players
+        players.remove(member.id)
+
+        new_captain = [member.id]
+
+        players = new_captain + players
+
+        await dbupdate('data.db', "UPDATE teams SET Player1, Player2, Player3, Player4, Player5 WHERE ID=?", (player.team.id,))
+
+        captain_role = get(ctx.guild.roles, id=config.team_captain_role_id)
+
+        await ctx.author.remove_roles(captain_role)
+        await member.add_roles(captain_role)
 
 
 def setup(bot):

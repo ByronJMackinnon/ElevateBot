@@ -14,12 +14,11 @@ class Player(object):  # Helper Object for Player Database Management
         self.member = member
 
     async def get_stats(self):  # Makes database call to add attributes to class
-        name, mmr, team, logo, url = await dbselect('data.db', 'SELECT Name, MMR, Team, Logo, URL FROM players WHERE ID=?', (self.member.id,))
+        name, mmr, team, logo = await dbselect('data.db', 'SELECT Name, MMR, Team, Logo FROM players WHERE ID=?', (self.member.id,))
         self.name = name
         self.mmr = mmr
         self.team = team
         self.logo = logo
-        self.url = url
 
         if self.team is None:
             pass
@@ -84,6 +83,8 @@ class Team(object):  # Helper Object for Team Database Management
 
             await team_average(self.id)  # Calculates new average MMR for roster.
 
+            await member.edit(nick=f"{self.abbrev.upper()} | {member.name}")
+
             # Gives the new member the "Team Member" role.
             team_member_role = get(member.guild.roles, id=config.team_member_role_id)
             await member.add_roles(team_member_role)
@@ -97,6 +98,8 @@ class Team(object):  # Helper Object for Team Database Management
         players = list(filter(None, self.players))
         team_member_role = get(member.guild.roles, id=config.team_member_role_id)
         team_captain_role = get(member.guild.roles, id=config.team_captain_role_id)
+
+        await dbupdate('data.db', "UPDATE players SET Team=? WHERE ID=?", (None, member.id,))
 
         if member.id == captain.id:  # If the captain is the one leaving.
             await member.remove_roles(team_member_role, team_captain_role)  # Takes away discord roles
@@ -132,13 +135,15 @@ class Team(object):  # Helper Object for Team Database Management
 
             await member.remove_roles(team_member_role)
 
+            await member.edit(nick=None)
+
             await member.send(f"You have been removed from {self.name}")
             await captain.send(f"{member.mention} has been removed from {self.name}")
 
-    async def edit_abbrev(ctx, abbrev):  # Edit teams abbreviation in the database and messages the captain
+    async def edit_abbrev(self, ctx, abbrev):  # Edit teams abbreviation in the database and messages the captain
         captain = get(ctx.guild.members, id=self.p1)
 
-        if len(abbrev) < 4:  # Abbreviations can only be 4 characters long.
+        if len(abbrev) > 4:  # Abbreviations can only be 4 characters long.
             await captain.send("I'm sorry, the max length for abbreviations are capped at 4 characters.")
             return
 
@@ -155,7 +160,11 @@ class Team(object):  # Helper Object for Team Database Management
         await dbupdate('data.db', "UPDATE teams SET Abbreviation=? WHERE ID=?", (abbrev.upper(), self.id,))
         await captain.send(f"{self.name}'s Abbreviation has been changed to [{abbrev.upper()}]")
 
-    async def edit_name(ctx, name):    # Edit teams name in the database and messages the captain
+        for player in self.players:
+            member = get(ctx.guild.members, id=player)
+            await member.edit(nick=f"{abbrev.upper()} | {ctx.author.name}")
+
+    async def edit_name(self, ctx, name):    # Edit teams name in the database and messages the captain
 
         async def team_in_database(name):  # Local function for checking existing teams.
             check = await dbselect('data.db', "SELECT * FROM players WHERE Name=?", (name.title(),))
@@ -163,7 +172,7 @@ class Team(object):  # Helper Object for Team Database Management
                 return False
             return True
 
-        if team_in_database(name):
+        if await team_in_database(name):
             await ctx.author.send("I'm sorry, there is already a team by that name. Please pick another name.")
             return
 
@@ -173,6 +182,8 @@ class Team(object):  # Helper Object for Team Database Management
             if character.isdigit():
                 pass
             elif character in string.ascii_letters:
+                pass
+            elif character == ' ':
                 pass
             else:
                 await captain.send("There was a special character used. We can only accept Alpha-Numeric characters.")
@@ -187,8 +198,11 @@ class Team(object):  # Helper Object for Team Database Management
         await dbupdate('data.db', "UPDATE teams SET Name=? WHERE ID=?", (name.title(), self.id,))
         await captain.send(f"Team name has been changed to **{name.title()}**")
 
-    async def edit_logo(ctx, link):  # Edit teams logo in the database and messages the captain
+    async def edit_logo(self, ctx, link=None):  # Edit teams logo in the database and messages the captain
         captain = get(ctx.guild.members, id=self.p1)
+
+        if link is None:
+            link = ctx.message.attachments[0].url
 
         await dbupdate('data.db', "UPDATE teams SET logo=? WHERE ID=?", (link, self.id,))
         await captain.send("Your team logo has been updated successfully.")
@@ -209,7 +223,7 @@ class DBInsert(object):  # Helper Object for Modular addition of database fields
                 return False
             return True
 
-        if team_in_database(name):
+        if await team_in_database(name):
             await ctx.author.send("I'm sorry, there is already a team by that name. Please pick another name.")
             return
 
@@ -231,6 +245,7 @@ class DBInsert(object):  # Helper Object for Modular addition of database fields
         team_member_role = get(ctx.guild.roles, id=config.team_member_role_id)
         team_captain_role = get(ctx.guild.roles, id=config.team_captain_role_id)
         await ctx.author.add_roles(team_member_role, team_captain_role)
+        await ctx.author.edit(nick=f"{abbrev.upper()} | {ctx.author.name}")
         await ctx.author.send(f"Your team has been successfully registered. **[{abbrev}]** | {name.title()}")
 
     async def match(team1, team2):  # Inserts new entry into the 'matches' table in the database.

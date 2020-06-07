@@ -49,7 +49,7 @@ async def team_average(teamID):
 
     for player in players:
         mmr = await dbselect('data.db', "SELECT MMR FROM players WHERE ID=?", (player,))
-        mmrs.append(mmr)
+        mmrs.append(int(mmr))
 
     average = round(sum(mmrs) / len(mmrs))
 
