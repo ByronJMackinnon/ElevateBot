@@ -5,6 +5,17 @@ import typing
 import aiosqlite
 from discord.utils import get
 
+async def dbselect_all(db, sql, variables):
+    db = await aiosqlite.connect(db)
+    cursor = await db.execute(sql, variables)
+    rows = await cursor.fetchall()
+    await cursor.close()
+    await db.close()
+
+    values = [item for t in rows for item in t]
+
+    return values
+
 async def dbselect(db, sql, variables):  # Helper function for grabbing information from database asynchronously.
     db = await aiosqlite.connect(db)
     cursor = await db.execute(sql, variables)
@@ -55,3 +66,16 @@ async def team_average(teamID):
 
     await dbupdate('data.db', "UPDATE teams SET MMR=? WHERE ID=?", (average, teamID,))
     return average
+
+async def calc_mmr_match_value(diff):
+    if diff >= 0 and diff < 25:
+        value = 9, 9
+    elif diff >= 25 and diff < 50:
+        value = 10, 8
+    elif diff >= 50 and diff < 75:
+        value = 11, 7
+    elif diff >= 75 and diff < 100:
+        value = 12, 6
+    else:
+        value = 13, 5
+    return value

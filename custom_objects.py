@@ -3,11 +3,12 @@ import string
 from datetime import datetime, timedelta
 
 # 3rd Party Imports
+import discord
 from discord.utils import get
 
 # Custom Imports
 import config
-from custom_functions import dbupdate, dbselect, team_average
+from custom_functions import dbupdate, dbselect, team_average, calc_mmr_match_value
 
 class Player(object):  # Helper Object for Player Database Management
     def __init__(self, member):
@@ -210,6 +211,37 @@ class Team(object):  # Helper Object for Team Database Management
     async def mmr_change(amount):    # Changes team MMR. Useful for after a series win.
         await dbupdate('data.db', 'UPDATE teams SET MMR=MMR+? WHERE ID=?', (amount, self.id,))
 
+class Match(object):
+    def __init__(self, id):
+        self.id = id
+
+    async def get_stats(self):
+        id, team1, team2, wl1, wl2, gain, loss, timeout, complete = await dbselect('data.db', "SELECT * FROM matches WHERE ID=?", (self.id,))
+        self.team1 = Team(team1)
+        self.team2 = Team(team2)
+
+        await team1.get_stats()
+        await team2.get_stats()
+
+        self.wl1 = wl1
+        self.wl2 = wl2
+        self.gain = gain
+        self.loss = loss
+        self.timeout = timeout
+        self.complete = complete
+
+    async def timeout(self, ctx):
+        team1, team2 = await dbselect('data.db', "SELECT Team1, Team2 FROM matches WHERE ID=?", (self.id,))
+        team1 = Team(team1)
+        team2 = Team(team2)
+
+        embed = discord.Embed(title=f"Your match has timed out. (Over {config.series_timeout} hours)", color=0xff0000, description=f"[team1.abbrev] {team1.name}\nVS.\n[{team2.abbrev}] {team2.name}")
+
+        players = team1.players + team2.players
+        for player in players:
+            member = get(ctx.guild.members, id=player)
+            await member.send(embed=embed)
+
 class DBInsert(object):  # Helper Object for Modular addition of database fields.
 
     async def member(member):  # Inserts new entry into the 'players' table in the database.
@@ -252,7 +284,17 @@ class DBInsert(object):  # Helper Object for Modular addition of database fields
         id = await dbselect('data.db', "SELECT count(*) FROM matches", ())
         id += 1
 
-        now = datetime.now()
+        now = datetime.now().strftime("%Y-%m-%d %H:%M")
         timeout = now + timedelta(hours=config.series_timeout)
 
-        await dbupdate('data.db', 'INSERT INTO matches (ID, Team1, Team2, WL1, WL2, MMR, Timeout, Complete) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', (id, team1, team2, None, None, None, timeout, False))
+        team1 = Team(team1)
+        await team1.get_stats()
+
+        team2 = Team(team2)
+        await team2.get_stats()
+
+        mmr_diff = abs(int(team1.mmr) - int(team2.mmr))
+
+        gain, loss = await calc_mmr_match_value(mmr_diff)
+
+        await dbupdate('data.db', 'INSERT INTO matches (ID, Team1, Team2, WL1, WL2, Gain, Loss, Timeout, Complete) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', (id, team1.id, team2.id, None, None, gain, loss, timeout, False))

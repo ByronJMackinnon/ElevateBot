@@ -1,10 +1,47 @@
-from discord.ext import commands
+from datetime import datetime
 
-from custom_functions import dbupdate, dbselect
+from discord.ext import commands, tasks
+from discord.utils import get
+
+from custom_functions import dbupdate, dbselect, dbselect_all
+from custom_objects import Team, DBInsert
 
 class Events(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.timeout_scan.start()
+
+    def cog_unload(self):
+        self.timeout_scan.cancel()
+
+    @tasks.loop(seconds=60.0)
+    async def timeout_scan(self):
+        timeouts = dbselect_all('data.db', "SELECT Timeout FROM matches", ())
+        timeouts = [datetime.strptime(dt, "%Y-%m-%d %H:%M") for dt in timeouts]
+        for id, timeout in enumerate(timeouts, 1):
+            if timeout <= datetime.now():
+                match = Match(id)
+                await match.timeout(ctx)
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload):
+        if payload.user_id == self.bot.user.id:
+            return
+        check = await dbselect('data.db', "SELECT * FROM invites WHERE MessageID=?", (payload.message_id,))
+        if check is None:
+            return
+        print(check)
+        channel, msgID, challenger, challenged, inviter = check
+        challenger = Team(challenger)
+        await challenger.get_stats()
+
+        challenged = Team(challenged)
+        await challenged.get_stats()
+
+        if payload.user_id not in challenged.players:
+            return
+
+        await DBInsert.match(challenger.id, challenged.id)
 
     @commands.Cog.listener()
     async def on_member_join(self, member):  # When a member joins the server

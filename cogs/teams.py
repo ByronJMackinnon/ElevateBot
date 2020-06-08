@@ -1,8 +1,11 @@
+from datetime import datetime
+
 import discord
 from discord.ext import commands
 
 import config
 from custom_objects import Player, DBInsert
+from custom_functions import dbselect
 
 class Teams(commands.Cog):
     def __init__(self, bot):
