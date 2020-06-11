@@ -29,6 +29,9 @@ async def on_connect():
 @bot.command(name="restart")
 @commands.is_owner()
 async def _restart(ctx):
+    """Restarts the entire bot.
+    
+    This is mostly useful for Class editing within a production environment."""
     await ctx.author.send("Restarting now...")
     FILEPATH = os.path.abspath(__file__)
     os.system('python3 %s' % (FILEPATH))

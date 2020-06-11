@@ -12,8 +12,19 @@ class Verify(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="verify")
+    @commands.command(name="verify", usage="<profile> [platform] (Defaults to Steam)")
     async def _verify(self, ctx, profile, platform=None):
+        """
+        This command is to be used to get a players rank information
+
+        When using your profile, you should be able to use your vanity name, Steam 64 ID, or the entire steam link.
+        DO NOT use your screen name, or whatever you changed your display name too.
+
+        Ex: My display name is BMan.Py, however 'BMan.py" wouldn't work. My URL is https://steamcommunity.com/id/BManRL.
+        Please send the entire URL, or just the "BManRL" part at the end. OTHERWISE your url might look something like this.
+        https://steamcommunity.com/profiles/6561198175677370 which is also just my profile, without the Vanity. 
+        So send the entire link, or just the numbers
+        """
         await ctx.message.add_reaction(config.waiting_emoji) # Hourglass Emoji
 
         # Platform handling
@@ -69,6 +80,15 @@ class Verify(commands.Cog):
         await dbupdate("data.db", "UPDATE stats SET Players=Players+1", ())
 
         await dbupdate("data.db", "UPDATE players SET URL=? WHERE ID=?", (url, ctx.author.id,))
+
+    @_verify.error
+    async def _verify_error(self, ctx, error):
+        """A local handler for verification errors."""
+
+        if isinstance(error, AttributeError):
+            await ctx.send("Profile criteria isn't able to be parsed.")
+        elif isinstance(error, IndexError):
+            await ctx.send("Unable to scrape rank information from your profile.")
 
 
 def setup(bot):

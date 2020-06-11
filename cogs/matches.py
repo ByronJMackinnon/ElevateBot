@@ -6,14 +6,19 @@ from discord.utils import get
 
 import config
 from custom_functions import dbupdate, dbselect
-from custom_objects import Player
+from custom_objects import Player, Match
 
 class Challenges(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name='challenge')
+    @commands.command(name='challenge', usage='<Team ID | @Member | Team Name>')
     async def _challenge(self, ctx, *, id: typing.Union[discord.Member, int, str]):
+        """
+        This command is used to challenge another team
+        
+        It takes 3 different arguments. Member, Team ID, or Team Name.
+        """
 
         if type(id) is discord.Member:  # Player/Member passed
             member = id
@@ -39,7 +44,7 @@ class Challenges(commands.Cog):
         challenged_players = [f'<@{player_id}>' for player_id in challenged.team.players]
 
         embed = discord.Embed(color=0x00ffff, description=f"{challenged.team.name} has been challenged by {challenger.team.name}. Are you interested?")
-        embed.add_field(name="Roster:", value=', '.join([f"<@{chal_player}>" for chal_player in challenger.team.players]))
+        embed.add_field(name="Roster:", value=', '.join(challenger_players))
         embed.add_field(name="Team Stats:", value=f'Wins: {challenger.team.wins}\nLosses: {challenger.team.losses}\nTotal Games: {challenger.team.wins + challenger.team.losses}', inline=False)
         embed.set_thumbnail(url=challenger.team.logo)
         embed.set_footer(text="You will have 4 days (96 hours) to report a match if accepted.", icon_url=config.elevate_logo)
@@ -57,15 +62,21 @@ class Reports(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="report")
+    @commands.command(name="report", usage="<Match ID> <Won/Loss>")
     async def _report(self, ctx, matchID, winorloss):
+        """
+        This command is used to report scores for matches played.
+
+        This command takes 2 arguments. The ID for the match, and whether you won or loss.
+        """
+
         check = await dbselect('data.db', "SELECT Complete FROM matches WHERE ID=?", (matchID,))
 
-        if winorloss.lower() in ['w', 'win']:
+        if winorloss.lower() in ['w', 'win', 'won']:
             wl_mine = 'W'
             wl_other = 'L'
 
-        elif winorloss.lower() in ['l', 'loss']:
+        elif winorloss.lower() in ['l', 'loss', 'lost']:
             wl_mine = 'L'
             wl_other = 'W'
 
@@ -90,7 +101,7 @@ class Reports(commands.Cog):
             await ctx.send("You aren't able to report a match you weren't a part of.")
             return
 
-        if winorloss.lower() in ['w', 'win']:  # Reporter Won
+        if winorloss.lower() in ['w', 'win', 'won']:  # Reporter Won
             if my_team.mmr > other_team.mmr:
                 for player in my_team.players:
                     player = get(ctx.guild.members, id=player)
@@ -113,7 +124,7 @@ class Reports(commands.Cog):
                     player = Player(player)
                     player.mmr_change(match.gain * -1)
 
-        elif winorloss.lower() in ['l', 'loss']:  # Reporter Lost
+        elif winorloss.lower() in ['l', 'loss', 'lost']:  # Reporter Lost
             if my_team.mmr > other_team.mmr:
                 for player in my_team.players:
                     player = get(ctx.guild.members, id=player)
