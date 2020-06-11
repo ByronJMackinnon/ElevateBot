@@ -1,3 +1,5 @@
+import os
+
 import discord
 from discord.ext import commands
 from botToken import token
@@ -18,6 +20,19 @@ for extension in initial_extensions:
 async def on_ready():
     print("Username: {0.name}#{0.discriminator}\nID: {0.id}".format(bot.user))
     print(f"Using discord.py v{discord.__version__}")
+
+@bot.event
+async def on_connect():
+    bman = bot.get_user(144051124272365569)
+    await bman.send("I have connected again!")
+
+@bot.command(name="restart")
+@commands.is_owner()
+async def _restart(ctx):
+    await ctx.author.send("Restarting now...")
+    FILEPATH = os.path.abspath(__file__)
+    os.system('python3 %s' % (FILEPATH))
+    exit()
 
 
 @bot.command(name="load")

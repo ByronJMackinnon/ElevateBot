@@ -136,10 +136,11 @@ class Team(object):  # Helper Object for Team Database Management
 
             await member.remove_roles(team_member_role)
 
-            await member.edit(nick=None)
-
             await member.send(f"You have been removed from {self.name}")
             await captain.send(f"{member.mention} has been removed from {self.name}")
+
+        await member.edit(nick=None)
+
 
     async def edit_abbrev(self, ctx, abbrev):  # Edit teams abbreviation in the database and messages the captain
         captain = get(ctx.guild.members, id=self.p1)
@@ -163,7 +164,32 @@ class Team(object):  # Helper Object for Team Database Management
 
         for player in self.players:
             member = get(ctx.guild.members, id=player)
-            await member.edit(nick=f"{abbrev.upper()} | {ctx.author.name}")
+            await member.edit(nick=f"{abbrev.upper()} | {member.name}")
+
+    async def edit_owner(self, ctx, member: discord.Member):
+        player = Player(ctx.author)
+        await player.get_stats()
+
+        if member.id not in player.team.players:
+            await ctx.author.send("You are only able to transfer ownership to someone on your team.")
+            return
+
+        players = player.team.players
+        players.remove(member.id)
+
+        new_captain = [member.id]
+
+        players = new_captain + players
+
+        while len(players) < 5:
+            players.append(None)
+
+        await dbupdate('data.db', "UPDATE teams SET Player1=?, Player2=?, Player3=?, Player4=?, Player5=? WHERE ID=?", (*players, player.team.id,))
+
+        captain_role = get(ctx.guild.roles, id=config.team_captain_role_id)
+
+        await ctx.author.remove_roles(captain_role)
+        await member.add_roles(captain_role)
 
     async def edit_name(self, ctx, name):    # Edit teams name in the database and messages the captain
 
