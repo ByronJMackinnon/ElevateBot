@@ -11,13 +11,13 @@ class Teams(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def is_team_captain(ctx):
+    async def is_team_captain(self, ctx):
         if config.team_captain_role_id in [role.id for role in ctx.author.roles]:
             return True
         await ctx.author.send("You need to be a team captain to run this command. If you think this was an error. Please reach out to one of the staff members.")
         return False
 
-    async def is_team_member(ctx):
+    async def is_team_member(self, ctx):
         if config.team_member_role_id in [role.id for role in ctx.author.roles]:
             return True
         await ctx.author.send("You need to be a team member to run this command. If you think this was an error. Please reach out to one of the staff members.")
