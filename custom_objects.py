@@ -242,18 +242,18 @@ class Match(object):
         self.id = id
 
     async def get_stats(self):
-        id, team1, team2, wl1, wl2, gain, loss, timeout, complete = await dbselect('data.db', "SELECT * FROM matches WHERE ID=?", (self.id,))
+        id, team1, team2, wl1, wl2, gain, loss, timeoutdate, complete = await dbselect('data.db', "SELECT * FROM matches WHERE ID=?", (self.id,))
         self.team1 = Team(team1)
         self.team2 = Team(team2)
 
-        await team1.get_stats()
-        await team2.get_stats()
+        await self.team1.get_stats()
+        await self.team2.get_stats()
 
         self.wl1 = wl1
         self.wl2 = wl2
         self.gain = gain
         self.loss = loss
-        self.timeout = timeout
+        self.timeoutdate = timeoutdate
         self.complete = complete
 
     async def timeout(self, ctx):
@@ -270,7 +270,7 @@ class Match(object):
 
 class DBInsert(object):  # Helper Object for Modular addition of database fields.
 
-    async def member(member):  # Inserts new entry into the 'players' table in the database.
+    async def member(self, member):  # Inserts new entry into the 'players' table in the database.
         await dbupdate('data.db', 'INSERT INTO players (ID, Name, MMR, Team, Logo, URL) VALUES (?, ?, ?, ?, ?, ?)', (member.id, f"{member.name}#{member.discriminator}", None, None, str(member.avatar_url), None))
 
     async def team(self, ctx, name):  # Inserts new entry into the 'teams' table in the database.
@@ -306,7 +306,7 @@ class DBInsert(object):  # Helper Object for Modular addition of database fields
         await ctx.author.edit(nick=f"{abbrev.upper()} | {ctx.author.name}")
         await ctx.author.send(f"Your team has been successfully registered. **[{abbrev}]** | {name.title()}")
 
-    async def match(team1, team2):  # Inserts new entry into the 'matches' table in the database.
+    async def match(self, team1, team2):  # Inserts new entry into the 'matches' table in the database.
         id = await dbselect('data.db', "SELECT count(*) FROM matches", ())
         id += 1
 
