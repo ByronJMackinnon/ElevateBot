@@ -1,3 +1,5 @@
+import traceback
+
 from bs4 import BeautifulSoup
 import requests
 import discord
@@ -84,11 +86,16 @@ class Verify(commands.Cog):
     @_verify.error
     async def _verify_error(self, ctx, error):
         """A local handler for verification errors."""
+        mod_channel = get(ctx.guild.text_channels, id=config.mod_channel)
 
         if isinstance(error, AttributeError):
-            await ctx.send("Profile criteria isn't able to be parsed.")
+            await alert("Profile criteria isn't able to be parsed.")
         elif isinstance(error, IndexError):
-            await ctx.send("Unable to scrape rank information from your profile.")
+            await alert("Unable to scrape rank information from your profile.")
+        else:
+            embed = discord.Embed(title="New Error", color=0xff00fff, description=error)
+            embed.add_field(name="Type:", value=type(error))
+            await mod_channel.send(embed=embed)
 
 
 def setup(bot):

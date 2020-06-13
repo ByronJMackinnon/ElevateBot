@@ -1,3 +1,4 @@
+import traceback
 from datetime import datetime
 
 import discord
@@ -21,6 +22,7 @@ class Teams(commands.Cog):
         if config.team_member_role_id in [role.id for role in ctx.author.roles]:
             return True
         return False
+
 
     @commands.group(name='team')
     async def _team(self, ctx):
