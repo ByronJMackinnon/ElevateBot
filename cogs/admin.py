@@ -12,6 +12,15 @@ class Admin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    def cog_check(self, ctx):
+        if config.admin_role_id in [role.id for role in ctx.author.roles]:
+            return True
+        return False
+
+    @commands.command(name="echo")
+    async def _echo(self, ctx, destination: typing.Union[discord.Member, discord.TextChannel], *, msg):
+        await destination.send(msg)
+
     @commands.group(name="search")
     async def _search(self, ctx):
         if ctx.invoked_subcommand:
