@@ -5,7 +5,7 @@ import discord
 from discord.ext import commands
 
 import config
-from custom_functions import dbselect
+from custom_functions import dbselect, dbupdate
 from custom_objects import Player, Team, Match
 
 class Admin(commands.Cog):
@@ -20,6 +20,38 @@ class Admin(commands.Cog):
     @commands.command(name="echo")
     async def _echo(self, ctx, destination: typing.Union[discord.Member, discord.TextChannel], *, msg):
         await destination.send(msg)
+
+    @commands.group(name='db')
+    async def _db(self, ctx):
+        if ctx.invoked_subcommand is None:
+            pass
+
+    @_db.command(name="view")
+    async def _db_view(self, ctx, table: str, identifier: int = None):
+        if table.lower() == "players":
+            columns = ["ID", "Name", "MMR", "Team", "Logo"]
+        elif table.lower() == "matches":
+            columns = ["ID", "Team1", "Team2", "WL1", "WL2", "Gain", "Loss", "Timeout", "Complete"]
+        elif table.lower() == "teams":
+            columns = ["ID", "Name", "Abbreviation", "Player1", "Player2", "Player3", "Player4", "Player5", "MMR", "Wins", "Losses", "Logo"]
+        if identifier is None:
+            await ctx.send(columns)
+            return
+        else:
+            query = await dbselect('data.db', f"SELECT * FROM {table.lower()} WHERE ID=?", (identifier,))
+        if query is None:
+            await ctx.send("That ID wasn't able to be found in that table. Please check the command and try again.")
+            return
+        layout = ""
+        for column, value in zip(columns, query):
+            layout = layout + f"{column}: {value}\n"
+        embed = discord.Embed(title="Database View", color=0x010101, description=layout)
+        embed.set_footer(text="These commands are extremely powerful. Use them with caution.", icon_url=config.elevate_logo)
+        await ctx.send(embed=embed)
+
+    @_db.command(name="edit")
+    async def _db_edit(self, ctx, table: str, id: int, column, new_value = None):
+        await dbupdate("data.db", f"UPDATE {table.lower()} SET {column.title()}=? WHERE ID=?", (new_value, id,))
 
     @commands.group(name="search")
     async def _search(self, ctx):
