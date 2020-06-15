@@ -2,12 +2,16 @@
 import typing
 
 # 3rd Party Imports
+import requests_async as requests
+import asyncio
+
 import aiosqlite
 import discord
 from discord.utils import get
 
 # Custom Imports
 import config
+from botToken import rp_gg_token, rp_gg_base
 
 async def dbselect_all(db, sql, variables):
     db = await aiosqlite.connect(db)
@@ -92,3 +96,14 @@ async def alert(ctx, message):
     mod_channel = get(ctx.guild.text_channels, id=config.mod_channel)
     await mod_channel.send(embed=embed)
     return
+
+async def get_player_mmr(platform, identifier):
+    async with requests.Session() as session:
+        headers = {'Authorization': rp_gg_token}
+        print(rp_gg_base, "/skills/get-player-skill?PlayerID=", platform, "|", identifier, "|0")
+        response = await session.get(f'{rp_gg_base}/skills/get-player-skill?PlayerID={platform}|{identifier}|0', headers=headers)
+        json = response.json()
+        stats = json['Result']['Skills']
+        stats3s = [item for item in stats if item["Playlist"] == 13][0]
+        mmr = stats3s['MMR']
+        return round((mmr * 20) + 100)
