@@ -23,6 +23,21 @@ class Teams(commands.Cog):
             return True
         return False
 
+    
+    @commands.command(name="updatemylogo")
+    async def _updatemylogo(self, ctx, link = None):
+        """Edits your own logo"""
+
+        if link is None:
+            try:
+                link = ctx.message.attachments[0].url
+            except IndexError:
+                link = ctx.author.avatar_url
+
+        player = Player(ctx.author)
+        await player.get_stats()
+
+        await player.edit_logo(link)
 
     @commands.group(name='team')
     async def _team(self, ctx):
