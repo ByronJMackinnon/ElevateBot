@@ -17,6 +17,19 @@ class Admin(commands.Cog):
             return True
         return False
 
+    @commands.command(name="purge")
+    async def _purge(self, ctx, amount: int):
+       await ctx.channel.purge(limit=amount) 
+
+    @commands.command(name="nonick")
+    async def _nonick(self, ctx, member: discord.Member):
+        if type(member) is discord.Member:
+            await member.edit(nick=None)
+        else:
+            if member.lower() == "all":
+                for member in ctx.guild.members:
+                    await member.edit(nick=None)
+
     @commands.command(name="echo")
     async def _echo(self, ctx, destination: typing.Union[discord.Member, discord.TextChannel], *, msg):
         await destination.send(msg)
