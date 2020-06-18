@@ -90,32 +90,9 @@ async def calc_mmr_match_value(diff):
 
 async def alert(ctx, message):
     embed = discord.Embed(title="Error.", color=0xff0000, description=message)
-    embed.set_footer(text="Powered by Elevate League", icon_url=config.elevate_logo)
-    await ctx.send(embed=embed)
+    embed.set_footer(text="Powered by rocket-planet.gg", icon_url=config.elevate_logo)
+    await ctx.send(embed=embed, delete_after=5)
     embed.add_field(name="Details:", value=f"Person: {ctx.author.mention}\nChannel: {ctx.channel.mention}\nMessage Content: **{ctx.message.content}**")
     mod_channel = get(ctx.guild.text_channels, id=config.mod_channel)
     await mod_channel.send(embed=embed)
     return
-
-async def get_player_id(rocketID):
-    tag, code = rocketID.split('#')
-    if tag is None or code is None:
-        print("Tag or Code not given.")
-        return
-    async with requests.Session() as session:
-        headers = {'Authorization': rp_gg_token}
-        response = await session.get(f'{rp_gg_base}/psy-tag/search?PsyTagName={tag}&PsyTagCode={code}', headers=headers)
-        json = response.json()
-        return json['Result']['MatchedPlayers'][0]['PlayerID']
-
-async def get_player_mmr(playerID):
-    async with requests.Session() as session:
-        headers = {'Authorization': rp_gg_token}
-        print(f'{rp_gg_base}/skills/get-player-skill?PlayerID={playerID}')
-        response = await session.get(f'{rp_gg_base}/skills/get-player-skill?PlayerID={playerID}', headers=headers)
-        json = response.json()
-        print(json)
-        stats = json['Result']['Skills']
-        stats3s = [item for item in stats if item["Playlist"] == 13][0]
-        mmr = stats3s['MMR']
-        return round((mmr * 20) + 100)
