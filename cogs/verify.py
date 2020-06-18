@@ -1,60 +1,25 @@
 import traceback
 
 from bs4 import BeautifulSoup
-import requests
+import requests_async as requests
 import discord
 from discord.ext import commands
 from discord.utils import get
 
 import config
-from custom_functions import dbselect, dbupdate, get_player_mmr
+from custom_functions import dbselect, dbupdate, get_player_mmr, get_player_id
 
 
 class Verify(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="verify", usage="<profile> [platform] (Defaults to Steam)")
-    async def _verify(self, ctx, profile, platform=None):
-        """
-        This command is to be used to get a players rank information
-
-        When using your profile, you should be able to use your vanity name, Steam 64 ID, or the entire steam link.
-        DO NOT use your screen name, or whatever you changed your display name too.
-
-        Ex: My display name is BMan.Py, however 'BMan.py" wouldn't work. My URL is https://steamcommunity.com/id/BManRL.
-        Please send the entire URL, or just the "BManRL" part at the end. OTHERWISE your url might look something like this.
-        https://steamcommunity.com/profiles/6561198175677370 which is also just my profile, without the Vanity. 
-        So send the entire link, or just the numbers
-        """
-        await ctx.message.add_reaction(config.waiting_emoji) # Hourglass Emoji
-
-        # Platform handling
-        ps_platforms = ['playstation', 'playstation4', 'ps4', 'ps']
-        xbox_platforms = ['xbox', 'xbone', 'xboxone', 'xbox1']
-        if platform is None:
-            platform = "Steam"
-        elif platform.lower() in ps_platforms:
-            platform = "PS4"
-        elif platform.lower() in xbox_platforms:
-            platform = "XboxOne"
-        else:
-            platform = "Steam"
-
-        # Profile Handling
-        if platform == 'Steam' and "steamcommunity.com" in profile:
-            profile = profile.split('/')[4]
-        
-        profile_url = f"https://steamidfinder.com/lookup/{profile}/"
-        profile_source = requests.get(profile_url)
-        profile_soup = BeautifulSoup(profile_source.text, "html.parser")
-        profile_main = profile_soup.find('div', attrs={'class': 'panel-body'})
-        codes = profile_main.find_all('code')
-        codes = [code.text for code in codes]
-        profile = codes[2]
-
+    @commands.command(name="verify", usage="<RocketID> Ex. BMan#6086")
+    async def _verify(self, ctx, *, rocketID):
         # API Call
-        mmr = await get_player_mmr(platform, profile)
+        player_id = await get_player_id(rocketID)
+
+        mmr = await get_player_mmr(player_id)
 
         # Database update
         await dbupdate('data.db', "UPDATE players SET MMR=? WHERE ID=?", (mmr, ctx.author.id,))

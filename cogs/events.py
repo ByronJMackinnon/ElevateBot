@@ -49,7 +49,8 @@ class Events(commands.Cog):
         check = await dbselect('data.db' 'SELECT ID FROM players WHERE ID=?', (member.id,))
 
         if check is None:
-            await DBInsert.member(member)
+            if not member.bot:
+                await DBInsert.member(member)
 
         await dbupdate('data.db', 'UPDATE stats SET Members=?', (member.guild.member_count,))
 

@@ -97,12 +97,24 @@ async def alert(ctx, message):
     await mod_channel.send(embed=embed)
     return
 
-async def get_player_mmr(platform, identifier):
+async def get_player_id(rocketID):
+    tag, code = rocketID.split('#')
+    if tag is None or code is None:
+        print("Tag or Code not given.")
+        return
     async with requests.Session() as session:
         headers = {'Authorization': rp_gg_token}
-        print(rp_gg_base, "/skills/get-player-skill?PlayerID=", platform, "|", identifier, "|0")
-        response = await session.get(f'{rp_gg_base}/skills/get-player-skill?PlayerID={platform}|{identifier}|0', headers=headers)
+        response = await session.get(f'{rp_gg_base}/psy-tag/search?PsyTagName={tag}&PsyTagCode={code}', headers=headers)
         json = response.json()
+        return json['Result']['MatchedPlayers'][0]['PlayerID']
+
+async def get_player_mmr(playerID):
+    async with requests.Session() as session:
+        headers = {'Authorization': rp_gg_token}
+        print(f'{rp_gg_base}/skills/get-player-skill?PlayerID={playerID}')
+        response = await session.get(f'{rp_gg_base}/skills/get-player-skill?PlayerID={playerID}', headers=headers)
+        json = response.json()
+        print(json)
         stats = json['Result']['Skills']
         stats3s = [item for item in stats if item["Playlist"] == 13][0]
         mmr = stats3s['MMR']
