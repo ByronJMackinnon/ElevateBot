@@ -31,8 +31,8 @@ class Player(object):  # Helper Object for Player Database Management
     async def mmr_change(self, amount):  # Updates individuals MMR. Important when cycling through players.
         await dbupdate("data.db", "UPDATE players SET MMR=MMR+?, WHERE ID=?", (amount, self.member.id,))
 
-    async def logo_change(self, link):  # Updates players profile image.
-        await dbupdate('data.db', 'UPDATE players SET Logo=? WHERE ID=?', (link, self.member.id,))
+    async def edit_logo(self, link):  # Updates players profile image.
+        await dbupdate('data.db', 'UPDATE players SET Logo=? WHERE ID=?', (str(link), self.member.id,))
 
 class Team(object):  # Helper Object for Team Database Management
     def __init__(self, teamID):
