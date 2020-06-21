@@ -17,6 +17,10 @@ class Admin(commands.Cog):
             return True
         return False
 
+    @commands.command(name='test')
+    async def _test(self, ctx):
+        await ctx.send("If you can see this. Git Fetch is working properly.")
+
     @commands.command(name="purge")
     async def _purge(self, ctx, amount: int):
        await ctx.channel.purge(limit=amount) 
