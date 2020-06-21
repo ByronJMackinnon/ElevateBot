@@ -37,7 +37,7 @@ class Events(commands.Cog):
                     embed = msg.embeds[0]
                     fixed_channel = self.bot.get_channel(config.fixed_channel_id)
                     fix_msg = await fixed_channel.send(embed=embed)
-                    await fix_msg.add_reaction(get(ctx.guild.emojis, name='check'))
+                    await msg.delete()
                     return
 
         check = await dbselect('data.db', "SELECT * FROM invites WHERE MessageID=?", (payload.message_id,))

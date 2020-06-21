@@ -5,7 +5,7 @@ import discord
 from discord.ext import commands
 
 import config
-from custom_functions import dbselect, dbupdate
+from custom_functions import dbselect, dbupdate, dbselect_all
 from custom_objects import Player, Team, Match
 
 class Admin(commands.Cog):
@@ -17,9 +17,17 @@ class Admin(commands.Cog):
             return True
         return False
 
-    @commands.command(name='test')
-    async def _test(self, ctx):
-        await ctx.send("If you can see this. Git Fetch is working properly.")
+    @commands.command(name="test")
+    async def _test(self, ctx, member: discord.Member):
+        results = await dbselect_all('data.db', "SELECT * FROM Fixes ORDER BY fixes DESC", ())
+        total = await dbselect('data.db', "SELECT count(*) FROM Fixes", ())
+        index = results.index(member.id)
+        bugs = results[index+1]
+        if index == 0:
+            position = 1
+        else:
+            position = (index/2) + 1
+        await ctx.send(f"Player is ranked **#{int(position)}** out of {total} people in bug testing. with a total of {bugs} found.")
 
     @commands.command(name="purge")
     async def _purge(self, ctx, amount: int):
@@ -79,6 +87,14 @@ class Admin(commands.Cog):
     async def _search(self, ctx):
         if ctx.invoked_subcommand:
             pass
+
+    @_search.command(name="bugs")
+    async def _search_bugs(self, ctx, member: discord.Member):
+        fixes = await dbselect('data.db', "SELECT fixes FROM Fixes WHERE ID=?", (member.id,))
+        if fixes is None:
+            await ctx.send("This player has not found any bugs so far.", delete_after=5)
+        else:
+            await ctx.send(f"That player has found {fixes} bugs.")
 
     @_search.command(name="player")
     async def _search_player(self, ctx, member: discord.Member = None):

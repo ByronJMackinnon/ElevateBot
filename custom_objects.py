@@ -56,6 +56,8 @@ class Team(object):  # Helper Object for Team Database Management
 
     async def add_player(self, member):  # Adds player to team in database and gives player proper discord roles.
         captain = get(member.guild.members, id=self.p1)
+        new_player = Player(member)
+        await new_player.get_stats()
 
         if member.id in self.players:  # Is on the same team they are trying to add
             await captain.send("This player is already on your team.")
@@ -63,6 +65,10 @@ class Team(object):  # Helper Object for Team Database Management
 
         elif config.team_member_role_id in [role.id for role in member.roles]:  # Has Team Member Role
             await captain.send("I'm sorry, this player seems to already be a part of a team.")
+            return
+
+        elif new_player.mmr is None:
+            await captain.send("I'm sorry, this player has not yet been verified and they are unable to be added to the team.")
             return
 
         else:  # All checks are cleared and the player gets added.
@@ -108,6 +114,7 @@ class Team(object):  # Helper Object for Team Database Management
             if len(players) == 1:  # If captain was the only player on the team, it deletes it from database
                 await dbupdate("data.db", "DELETE FROM teams WHERE ID=?", (self.id,))
                 await member.send(f"You were removed from {self.name}. Which resulted in the team being deleted since you were the only player.")
+                await member.edit(nick=None)
                 return
 
             player.remove(member.id)  # Remove captain from the players list.
