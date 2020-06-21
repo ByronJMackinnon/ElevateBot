@@ -27,7 +27,7 @@ class ErrorHandler(commands.Cog):
         error = getattr(error, 'original', error)
         
         if isinstance(error, ignored):
-            pass
+            return
 
         elif isinstance(error, commands.DisabledCommand):
             await ctx.send(f'{ctx.command} has been disabled.')

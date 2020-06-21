@@ -3,6 +3,7 @@ from datetime import datetime
 from discord.ext import commands, tasks
 from discord.utils import get
 
+import config
 from custom_functions import dbupdate, dbselect, dbselect_all
 from custom_objects import Team, DBInsert
 
@@ -17,6 +18,8 @@ class Events(commands.Cog):
     @tasks.loop(seconds=60.0)
     async def timeout_scan(self):
         timeouts = dbselect_all('data.db', "SELECT Timeout FROM matches", ())
+        if timeouts is None:
+            return
         timeouts = [datetime.strptime(dt, "%Y-%m-%d %H:%M") for dt in timeouts]
         for id, timeout in enumerate(timeouts, 1):
             if timeout <= datetime.now():
@@ -27,6 +30,16 @@ class Events(commands.Cog):
     async def on_raw_reaction_add(self, payload):
         if payload.user_id == self.bot.user.id:
             return
+        if payload.channel_id == config.to_fix_channel_id:
+            if payload.user_id == 144051124272365569:
+                if str(payload.emoji) == "<:check:723985365362278471>":
+                    msg = await self.bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
+                    embed = msg.embeds[0]
+                    fixed_channel = self.bot.get_channel(config.fixed_channel_id)
+                    fix_msg = await fixed_channel.send(embed=embed)
+                    await fix_msg.add_reaction(get(ctx.guild.emojis, name='check'))
+                    return
+
         check = await dbselect('data.db', "SELECT * FROM invites WHERE MessageID=?", (payload.message_id,))
         if check is None:
             return

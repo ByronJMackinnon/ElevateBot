@@ -39,6 +39,11 @@ class Admin(commands.Cog):
         if ctx.invoked_subcommand is None:
             pass
 
+    @_db.command(name="backup")
+    async def _db_backup(self, ctx):
+        with open('data.db', 'rb') as file:
+            await ctx.send(file=discord.File(file, "Backup Database.db"))
+
     @_db.command(name="view")
     async def _db_view(self, ctx, table: str, identifier: int = None):
         if table.lower() == "players":

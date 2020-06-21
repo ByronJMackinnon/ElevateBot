@@ -90,9 +90,17 @@ async def calc_mmr_match_value(diff):
 
 async def alert(ctx, message):
     embed = discord.Embed(title="Error.", color=0xff0000, description=message)
-    embed.set_footer(text="Powered by rocket-planet.gg", icon_url=config.elevate_logo)
+    embed.set_footer(text="Powered by rocket-planet.gg", icon_url=config.rp_gg_logo)
     await ctx.send(embed=embed, delete_after=5)
+
+async def mod_log(ctx, message):
+    embed = discord.Embed(title="Error.", color=0xff0000, description=message)
     embed.add_field(name="Details:", value=f"Person: {ctx.author.mention}\nChannel: {ctx.channel.mention}\nMessage Content: **{ctx.message.content}**")
     mod_channel = get(ctx.guild.text_channels, id=config.mod_channel)
     await mod_channel.send(embed=embed)
     return
+
+async def send_confirm(ctx, message):
+    embed = discord.Embed(title="Success.", color=0x00ff00, description=message)
+    embed.set_footer(text="Powered by rocket-planet.gg", icon_url=config.rp_gg_logo)
+    await ctx.send(embed=embed, delete_after=5)

@@ -7,7 +7,7 @@ from discord.utils import get
 
 import config
 from custom_objects import Player, DBInsert
-from custom_functions import dbselect, dbupdate
+from custom_functions import dbselect, dbupdate, send_confirm
 
 class Teams(commands.Cog):
     def __init__(self, bot):
@@ -39,6 +39,8 @@ class Teams(commands.Cog):
 
         await player.edit_logo(link)
 
+        await send_confirm(ctx, "Your logo has been updated!")
+
     @commands.group(name='team')
     async def _team(self, ctx):
         """Shows your current teams information."""
@@ -48,6 +50,7 @@ class Teams(commands.Cog):
             await player.get_stats()
             if player.team is None:
                 embed = discord.Embed(title="Free Agent", color=0x00ffff)
+                embed.add_field(name="MMR:", value=player.mmr)
                 embed.set_thumbnail(url=player.logo)
             else:
                 roster = list(filter(None, player.team.players))
