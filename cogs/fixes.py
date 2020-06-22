@@ -12,6 +12,7 @@ class Fixes(commands.Cog):
     @commands.command(name="tofix")
     @commands.is_owner()
     async def _tofix(self, ctx, member: discord.Member, *, bug):
+        await ctx.message.delete()
         check = await dbselect('data.db', 'SELECT ID FROM fixes WHERE ID=?', (member.id,))
         if check is None:
             await dbupdate('data.db', 'INSERT INTO fixes (ID, Fixes) VALUES (?, ?)', (member.id, 1))

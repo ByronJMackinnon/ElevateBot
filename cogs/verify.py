@@ -17,7 +17,10 @@ class Verify(commands.Cog):
         self.bot = bot
 
     @commands.command(name="verify", usage="<RocketID> Ex. BMan#6086")
-    async def _verify(self, ctx, *, rocketID):
+    async def _verify(self, ctx, *, rocketID = None):
+        if rocketID is None:
+            await ctx.message.delete()
+            return await ctx.send("Please enter your RocketID with your command. (Ex. `!verify BMan#6086`)", delete_after=10)
         # API Call
         player_mmr = await get_player_mmr(rocketID)
 
@@ -43,6 +46,7 @@ class Verify(commands.Cog):
             await alert(ctx, "It appears as though that wasn't the full RocketID. Please enter it with name and tag. (Ex. BMan#6086)")
             await mod_log(ctx, error)
         else:
+            await alert(ctx, "Your RocketID did not return expected results. Please make sure it is the correct RocketID and try again.")
             await mod_log(ctx, f"**This error was unhandled.**\n{error}")
 
 

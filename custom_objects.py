@@ -200,13 +200,16 @@ class Team(object):  # Helper Object for Team Database Management
 
     async def edit_name(self, ctx, name):    # Edit teams name in the database and messages the captain
 
-        async def team_in_database(name):  # Local function for checking existing teams.
-            check = await dbselect('data.db', "SELECT * FROM players WHERE Name=?", (name.title(),))
-            if check is None:
-                return False
-            return True
+        if len(name) > config.longest_team_name:
+            return await ctx.author.send("The team name was too large. No changes were made.")
 
-        if await team_in_database(name):
+        elif len(name) < config.shortest_team_name:
+            return await ctx.author.send("The team name is too short. No changes were made.")
+            
+        check = await dbselect('data.db', "SELECT * FROM players WHERE Name=?", (name.title(),))
+        if check is None:
+            pass
+        else:
             await ctx.author.send("I'm sorry, there is already a team by that name. Please pick another name.")
             return
 
@@ -278,7 +281,9 @@ class Match(object):
 class DBInsert(object):  # Helper Object for Modular addition of database fields.
 
     async def member(self, member):  # Inserts new entry into the 'players' table in the database.
-        await dbupdate('data.db', 'INSERT INTO players (ID, Name, MMR, Team, Logo, URL) VALUES (?, ?, ?, ?, ?, ?)', (member.id, f"{member.name}#{member.discriminator}", None, None, str(member.avatar_url), None))
+        if member.bot:
+            return
+        await dbupdate('data.db', 'INSERT INTO players (ID, Name, MMR, Team, Logo) VALUES (?, ?, ?, ?, ?)', (member.id, f"{member.name}#{member.discriminator}", None, None, str(member.avatar_url),))
 
     async def team(self, ctx, name):  # Inserts new entry into the 'teams' table in the database.
 

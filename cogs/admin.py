@@ -17,18 +17,6 @@ class Admin(commands.Cog):
             return True
         return False
 
-    @commands.command(name="test")
-    async def _test(self, ctx, member: discord.Member):
-        results = await dbselect_all('data.db', "SELECT * FROM Fixes ORDER BY fixes DESC", ())
-        total = await dbselect('data.db', "SELECT count(*) FROM Fixes", ())
-        index = results.index(member.id)
-        bugs = results[index+1]
-        if index == 0:
-            position = 1
-        else:
-            position = (index/2) + 1
-        await ctx.send(f"Player is ranked **#{int(position)}** out of {total} people in bug testing. with a total of {bugs} found.")
-
     @commands.command(name="purge")
     async def _purge(self, ctx, amount: int):
        await ctx.channel.purge(limit=amount) 
@@ -90,17 +78,23 @@ class Admin(commands.Cog):
 
     @_search.command(name="bugs")
     async def _search_bugs(self, ctx, member: discord.Member):
-        fixes = await dbselect('data.db', "SELECT fixes FROM Fixes WHERE ID=?", (member.id,))
-        if fixes is None:
-            await ctx.send("This player has not found any bugs so far.", delete_after=5)
+        results = await dbselect_all('data.db', "SELECT * FROM Fixes ORDER BY fixes DESC", ())
+        if member.id not in results:
+            await ctx.send("That player hasn't found any bugs yet.", delete_after=5)
+            return
+        total = await dbselect('data.db', "SELECT count(*) FROM Fixes", ())
+        index = results.index(member.id)
+        bugs = results[index+1]
+        if index == 0:
+            position = 1
         else:
-            await ctx.send(f"That player has found {fixes} bugs.")
+            position = (index/2) + 1
+        await ctx.send(f"Player is ranked **#{int(position)}** out of {total} people in bug testing. with a total of {bugs} found.")
 
     @_search.command(name="player")
     async def _search_player(self, ctx, member: discord.Member = None):
         if member is None:
-            command = self.bot.get_command('team')
-            await ctx.invoke(command)
+            member = ctx.author
             return
 
         player = Player(member)
@@ -108,7 +102,10 @@ class Admin(commands.Cog):
 
         embed = discord.Embed(color=0x00ffff)
         embed.set_author(name=player.name, icon_url=player.logo)
-        embed.add_field(name="MMR:", value=player.mmr)
+        if player.mmr is None:
+            embed.add_field(name="MMR:", value="Not yet verified.")
+        else:
+            embed.add_field(name="MMR:", value=player.mmr)
         if player.team is None:
             embed.add_field(name="Team:", value="Free Agent")
             embed.set_footer(text=f"Player ID: {player.member.id}", icon_url=config.elevate_logo)
@@ -118,7 +115,7 @@ class Admin(commands.Cog):
             Wins: {player.team.wins}
             Losses: {player.team.losses}
             Total Games: {player.team.wins + player.team.losses}
-            Roster: {', '.join(['<@{player_id}>' for player_id in player.team.roster])}""")
+            Roster: {', '.join([f'<@{player_id}>' for player_id in player.team.players])}""", inline=False)
             embed.set_footer(text=f"Player ID: {player.member.id} | Team ID: {player.team.id}")
             embed.set_thumbnail(url=player.team.logo)
 

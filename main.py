@@ -2,7 +2,11 @@ import os
 
 import discord
 from discord.ext import commands
+
+import config
 from botToken import token
+from custom_functions import dbselect
+from custom_objects import DBInsert
 
 
 bot = commands.Bot(command_prefix="!", owner_id=144051124272365569, case_insensitive=True)
@@ -20,6 +24,15 @@ for extension in initial_extensions:
 async def on_ready():
     print("Username: {0.name}#{0.discriminator}\nID: {0.id}".format(bot.user))
     print(f"Using discord.py v{discord.__version__}")
+
+    guild = bot.get_guild(config.server_id)
+    for member in guild.members:
+        check = await dbselect('data.db', "SELECT Name FROM players WHERE ID=?", (member.id,))
+        if check is None:
+            await DBInsert().member(member)
+            print(f"ADDED --- {member.name}#{member.discriminator}")
+        else:
+            print(f"{member.name}#{member.discriminator} --- PASSED")
 
 @bot.event
 async def on_connect():

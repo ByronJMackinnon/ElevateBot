@@ -24,9 +24,12 @@ class Teams(commands.Cog):
         return False
 
     
-    @commands.command(name="updatemylogo")
+    @commands.command(name="updatemylogo", usage="<Link/File>")
     async def _updatemylogo(self, ctx, link = None):
-        """Edits your own logo"""
+        """Edits your own logo
+        
+        You can give a link, upload a file, or if you give nothing, it will update to your current discord profile picture.
+        """
 
         if link is None:
             try:
@@ -63,16 +66,22 @@ class Teams(commands.Cog):
             embed.set_author(name=player.name, icon_url=ctx.author.avatar_url)
             await ctx.send(embed=embed)
 
-    @_team.command(name='create')
+    @_team.command(name='create', usage="<Team Name>")
     async def _team_create(self, ctx, *, team_name):
         """Used to create a team."""
 
         if config.team_member_role_id in [role.id for role in ctx.author.roles]:
-            await ctx.send("I'm sorry, you are already in a team. Please leave your current team before creating a new one.")
-            return
+            return await ctx.send("I'm sorry, you are already in a team. Please leave your current team before creating a new one.")
+        elif len(team_name) < config.shortest_team_name:
+            return await ctx.send(f"The team name you choose is too short. (Less than {config.shortest_team_name} characters.")
+        elif len(team_name) > config.longest_team_name:
+            return await ctx.send(f"The team name you choose is too long. (More than {config.longest_team_name} characters.)")
+        elif any(swear in team_name.lower() for swear in config.swears):
+            return await ctx.send("Please use an appropriate name for your team.")
+
         await DBInsert().team(ctx, team_name)
 
-    @_team.command(name='add')
+    @_team.command(name='add', usage="@Player")
     @commands.check(is_team_captain)
     async def _team_add(self, ctx, member: discord.Member):
         """Add a player to your team"""
@@ -82,7 +91,7 @@ class Teams(commands.Cog):
 
         await player.team.add_player(member)
 
-    @_team.command(name='remove')
+    @_team.command(name='remove', usage="@Player")
     @commands.check(is_team_captain)
     async def _team_remove(self, ctx, member: discord.Member):
         """Removes player from team"""
@@ -115,7 +124,7 @@ class Teams(commands.Cog):
         if ctx.invoked_subcommand is None:
             pass
 
-    @_team_edit.command(name='abbrev', aliases=['abbreviation'])
+    @_team_edit.command(name='abbrev', aliases=['abbreviation'], usage="<New Abbreviation>")
     async def _team_edit_abbrev(self, ctx, abbrev):
         """Edit your teams abbreviation"""
 
@@ -124,7 +133,7 @@ class Teams(commands.Cog):
 
         await player.team.edit_abbrev(ctx, abbrev)
 
-    @_team_edit.command(name='name')
+    @_team_edit.command(name='name', usage="<New Team Name>")
     async def _team_edit_name(self, ctx, *, name):
         """Edits your teams name"""
 
@@ -133,9 +142,11 @@ class Teams(commands.Cog):
 
         await player.team.edit_name(ctx, name)
 
-    @_team_edit.command(name='logo')
+    @_team_edit.command(name='logo', usage="<Link/File>")
     async def _team_edit_logo(self, ctx, link = None):
-        """Edits your team logo"""
+        """Edits your team logo
+        
+        You can give a link, upload a file"""
 
         if link is None:
             if len(ctx.message.attachments) == 0:
@@ -148,9 +159,9 @@ class Teams(commands.Cog):
 
         await player.team.edit_logo(ctx, link)
 
-    @_team_edit.command(name='owner')
+    @_team_edit.command(name='owner', usage="@Player")
     async def _team_edit_owner(self, ctx, member: discord.Member):
-        """Transfer Ownership of Team."""
+        """Transfer Ownership of Team to a new player"""
 
         player = Player(ctx.author)
         await player.get_stats()
