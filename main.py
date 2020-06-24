@@ -10,7 +10,7 @@ from custom_objects import DBInsert
 
 
 bot = commands.Bot(command_prefix="!", owner_id=144051124272365569, case_insensitive=True)
-initial_extensions = ["cogs.verify", "cogs.teams", "cogs.events", "cogs.matches", "cogs.admin", "cogs.errors", "cogs.fixes"]
+initial_extensions = ["cogs.test"]
 
 for extension in initial_extensions:
     try:
@@ -25,19 +25,18 @@ async def on_ready():
     print("Username: {0.name}#{0.discriminator}\nID: {0.id}".format(bot.user))
     print(f"Using discord.py v{discord.__version__}")
 
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="over the League."))
+
     guild = bot.get_guild(config.server_id)
     for member in guild.members:
         check = await dbselect('data.db', "SELECT Name FROM players WHERE ID=?", (member.id,))
         if check is None:
+            if member.bot:
+                return
             await DBInsert().member(member)
             print(f"ADDED --- {member.name}#{member.discriminator}")
         else:
             print(f"{member.name}#{member.discriminator} --- PASSED")
-
-@bot.event
-async def on_connect():
-    bman = bot.get_user(144051124272365569)
-    await bman.send("I have connected again!")
 
 @bot.command(name="restart")
 @commands.is_owner()

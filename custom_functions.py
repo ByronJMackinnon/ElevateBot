@@ -104,3 +104,9 @@ async def send_confirm(ctx, message):
     embed = discord.Embed(title="Success.", color=0x00ff00, description=message)
     embed.set_footer(text="Powered by rocket-planet.gg", icon_url=config.rp_gg_logo)
     await ctx.send(embed=embed, delete_after=5)
+
+async def is_in_database(*, sql):
+    check = await dbselect('data.db', sql, ()):
+    if check is None:
+        return False
+    return True
