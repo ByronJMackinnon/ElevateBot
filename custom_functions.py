@@ -106,7 +106,7 @@ async def send_confirm(ctx, message):
     await ctx.send(embed=embed, delete_after=5)
 
 async def is_in_database(*, sql):
-    check = await dbselect('data.db', sql, ()):
+    check = await dbselect('data.db', sql, ())
     if check is None:
         return False
     return True

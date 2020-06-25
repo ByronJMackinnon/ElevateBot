@@ -1,4 +1,6 @@
 import os
+import importlib
+import inspect
 
 import discord
 from discord.ext import commands
@@ -6,11 +8,10 @@ from discord.ext import commands
 import config
 from botToken import token
 from custom_functions import dbselect
-from custom_objects import DBInsert
 
 
 bot = commands.Bot(command_prefix="!", owner_id=144051124272365569, case_insensitive=True)
-initial_extensions = ["cogs.test"]
+initial_extensions = ["cogs.test", "cogs.verify", "cogs.events"]
 
 for extension in initial_extensions:
     try:
