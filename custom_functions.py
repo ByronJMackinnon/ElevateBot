@@ -1,5 +1,7 @@
 # Standard Imports
 import typing
+import traceback
+import sys
 
 # 3rd Party Imports
 import requests_async as requests
@@ -93,13 +95,6 @@ async def alert(ctx, message):
     embed.set_footer(text="Powered by rocket-planet.gg", icon_url=config.rp_gg_logo)
     await ctx.send(embed=embed, delete_after=5)
 
-async def mod_log(ctx, message):
-    embed = discord.Embed(title="Error.", color=0xff0000, description=message)
-    embed.add_field(name="Details:", value=f"Person: {ctx.author.mention}\nChannel: {ctx.channel.mention}\nMessage Content: **{ctx.message.content}**")
-    mod_channel = get(ctx.guild.text_channels, id=config.mod_channel)
-    await mod_channel.send(embed=embed)
-    return
-
 async def send_confirm(ctx, message):
     embed = discord.Embed(title="Success.", color=0x00ff00, description=message)
     embed.set_footer(text="Powered by rocket-planet.gg", icon_url=config.rp_gg_logo)
@@ -110,3 +105,18 @@ async def is_in_database(*, sql):
     if check is None:
         return False
     return True
+
+async def error_log(ctx, error):
+    error_channel = get(ctx.guild.text_channels, id=config.error_channel)
+    # All other Errors not returned come here. And we can just print the default TraceBack.
+    print('Ignoring exception in command {}:'.format(ctx.command), file=sys.stderr)
+    traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
+    test = traceback.format_exception(type(error), error, error.__traceback__)
+    new_test = [test[-2], test[-1]]
+    new_test = '\n'.join(new_test)
+
+    embed = discord.Embed(title="Additional Information", color=0xffff00, 
+            description=f'Member: {ctx.author.mention}\nChannel: {ctx.message.channel.mention}\nCommand: `{ctx.prefix}{ctx.command.qualified_name}`\n[Jump!]({ctx.message.jump_url})')
+    embed.add_field(name="Error", value=f'```fix\n{new_test}```')
+    embed.set_thumbnail(url=ctx.author.avatar_url)
+    await error_channel.send(embed=embed)

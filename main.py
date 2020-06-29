@@ -8,17 +8,18 @@ from discord.ext import commands
 import config
 from botToken import token
 from custom_functions import dbselect
+from custom_objects import DBInsert
 
 
 bot = commands.Bot(command_prefix="!", owner_id=144051124272365569, case_insensitive=True)
-initial_extensions = ["cogs.test", "cogs.verify", "cogs.events"]
 
-for extension in initial_extensions:
-    try:
-        bot.load_extension(extension)
-    except Exception as e:
-        exc = f"{type(e).__name__}: {e}"
-        print(f"Failed to load extension {extension}\n{exc}")
+for extension in os.listdir('./cogs'):
+    if extension.endswith('.py'):
+        try:
+            bot.load_extension(f'cogs.{extension[:-3]}')
+        except Exception as e:
+            exc = f"{type(e).__name__}: {e}"
+            print(f"Failed to load extension {extension}\n{exc}")
 
 
 @bot.event
@@ -29,15 +30,18 @@ async def on_ready():
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="over the League."))
 
     guild = bot.get_guild(config.server_id)
+    new_players = []
     for member in guild.members:
         check = await dbselect('data.db', "SELECT Name FROM players WHERE ID=?", (member.id,))
-        if check is None:
-            if member.bot:
-                return
-            await DBInsert().member(member)
-            print(f"ADDED --- {member.name}#{member.discriminator}")
-        else:
-            print(f"{member.name}#{member.discriminator} --- PASSED")
+        if member.bot:
+            return
+        await DBInsert().player(member)
+        new_players.append(member.mention)
+    if len(added_players) > 0:
+        await bot.wait_until_ready()
+        bman = bot.get_user(144051124272365569)
+        added_players = '\n'.join(new_players)
+        await bman.send(f'{len(new_players)} added to the database.\n```{added_players}```')
 
 @bot.command(name="restart")
 @commands.is_owner()
