@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord.utils import get
 
 import config
-from custom_functions import is_in_database
+from custom_functions import is_in_database, error_log
 from custom_objects import Player, DBInsert
 
 class Teams(commands.Cog):
@@ -102,11 +102,13 @@ class Teams(commands.Cog):
         await ctx.author.edit(nick=f'{player.team.abbrev} | {player.name}')
 
     @_team.command(name='add')
+    @commands.check(is_team_captain)
     async def _team_add(self, ctx, member: discord.Member):
         player = await Player(ctx, ctx.author)
         await player.team.add_player(member)
 
     @_team.command(name='remove')
+    @commands.check(is_team_captain)
     async def _team_remove(self, ctx, member: discord.Member):
         player = await Player(ctx, ctx.author)
         await player.team.remove_player(ctx, member)
@@ -130,6 +132,7 @@ class Teams(commands.Cog):
         await ctx.send(f"You have left {player.team.name}")
 
     @_team.group(name='edit')
+    @commands.check(is_team_captain)
     async def _team_edit(self, ctx):
         if ctx.invoked_subcommand is None:
             pass
@@ -165,6 +168,20 @@ class Teams(commands.Cog):
                 return await ctx.send("We were unable to find the picture you would like to use. Please use a file or a link with the command.", delete_after=10)
         player = await Player(ctx, ctx.author)
         await player.team.set_logo(link)
+
+#* ---------------------------------------------------- ERRORS ----------------------------------------------------
+
+    @_player.error
+    async def _player_error(self, ctx, error):
+        if isinstance(error, TypeError):
+            player = await Player(ctx, ctx.author)
+            if player.team is None:
+                return await error_log(ctx, error)  # ?Team is coming up as None?
+            else:
+                if await is_in_database(sql=f'SELECT Name FROM teams WHERE ID={player.team.id}'):
+                    return await error_log(ctx, error)  # ?Everything team related is fine?
+            await dbupdate('data.db', "UPDATE players SET Team=? WHERE ID=?", (None, ctx.author.id,))
+            await ctx.send("I believe there was a database error. I made changes. Please try the command again.", delete_after=10)
 
 def setup(bot):
     bot.add_cog(Teams(bot))

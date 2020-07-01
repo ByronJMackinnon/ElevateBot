@@ -2,6 +2,7 @@
 import typing
 import traceback
 import sys
+from datetime import datetime
 
 # 3rd Party Imports
 import requests_async as requests
@@ -115,8 +116,13 @@ async def error_log(ctx, error):
     new_test = [test[-2], test[-1]]
     new_test = '\n'.join(new_test)
 
-    embed = discord.Embed(title="Additional Information", color=0xffff00, 
+    embed = discord.Embed(title="Additional Information", color=0xff0000, 
             description=f'Member: {ctx.author.mention}\nChannel: {ctx.message.channel.mention}\nCommand: `{ctx.prefix}{ctx.command.qualified_name}`\n[Jump!]({ctx.message.jump_url})')
     embed.add_field(name="Error", value=f'```fix\n{new_test}```')
     embed.set_thumbnail(url=ctx.author.avatar_url)
     await error_channel.send(embed=embed)
+
+async def mod_log(ctx, message):
+    mod_channel = get(ctx.guild.text_channels, id=config.mod_channel)
+    embed = discord.Embed(color=0xffaa00, description=message, timestamp=datetime.now())
+    await mod_channel.send(embed=embed)

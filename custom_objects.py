@@ -57,12 +57,13 @@ class Player(object):
                 mmr_js = await mmr_resp.json()
                 player_mmr_raw = mmr_js['Result']['Skills'][3]['MMR']
                 player_mmr = round((float(player_mmr_raw) * 20) + 100)
-                return player_mmr
+                self.mmr = player_mmr
+                await dbupdate('data.db', "UPDATE players SET MMR=? WHERE ID=?", (self.mmr, self.member.id,))
 
     async def save_changes(self):
-        self.mmr = await self.verify_mmr()
-        db_changes = [self.name, self.mmr, self.team, self.logo]
-        await dbupdate('data.db', "UPDATE players SET Name=?, MMR=?, Team=?, Logo=? WHERE ID=?", (*db_changes, self.member.id,))
+        await self.verify_mmr()
+        db_changes = [self.name, self.team, self.logo]
+        await dbupdate('data.db', "UPDATE players SET Name=?, Team=?, Logo=? WHERE ID=?", (*db_changes, self.member.id,))
         return "Changes commited to database."
 
     async def change_mmr(self, amount):
