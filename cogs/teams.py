@@ -114,6 +114,7 @@ class Teams(commands.Cog):
         await player.team.remove_player(ctx, member)
 
     @_team.command(name="leave")
+    @commands.check(is_team_member)
     async def _team_leave(self, ctx):
         # INFO Database Stuff
         player = await Player(ctx, ctx.author)

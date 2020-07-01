@@ -125,7 +125,7 @@ class Team(object):
     """
 
     async def __new__(cls, ctx, TeamID):
-        id_lost, name, abbrev, p1, p2, p3, p4, p5, mmr, wins, losses, logo, color = await dbselect('data.db', "SELECT * FROM teams WHERE ID=?", (TeamID,))
+        id_lost, name, abbrev, p1, p2, p3, p4, p5, mmr, tier, wins, losses, logo, color = await dbselect('data.db', "SELECT * FROM teams WHERE ID=?", (TeamID,))
         
         raw_players = [p1, p2, p3, p4, p5]  # All player slots
         raw_players = list(filter(None, raw_players))  # All players currently on team. (Remove NoneTypes)
@@ -149,9 +149,28 @@ class Team(object):
         object.__setattr__(obj, 'wins', wins)
         object.__setattr__(obj, 'losses', losses)
         object.__setattr__(obj, 'logo', logo)
+        object.__setattr__(obj, 'tier', tier)
         return obj
 
-    async def verify_mmr(self):
+    async def promote(self):
+        embed = discord.Embed(color=0x00ff00, description="Your team has been promoted to Tier 1! Congratulations.")
+        for member in self.players:
+            await member.send(embed=embed)
+
+    async def demote(self):
+        embed = discord.Embed(color=0xff0000, description="Your team has been demoted to Tier 2. The average 3's MMR across your team is less than 1500.")
+        for member in self.players:
+            await member.send(embed=embed)
+
+    async def verify_tier(self, mmr):
+        if self.tier == 1 and average_mmr < 1500:
+            self.tier = 2
+            await self.demote()
+        elif self.tier == 2 and average_mmr > 1800:
+            self.tier = 1
+            await self.promote()
+
+    async def average_mmr(self):
         # Average the MMR and commit it to new attribute and save_changes()
         mmrs = []
         for element in self.roster:
@@ -160,15 +179,13 @@ class Team(object):
             member = get(self.ctx.guild.members, id=element)
             player = await Player(self.ctx, member)
             mmrs.append(player.mmr)
-        
-        average_mmr = round(sum(mmrs) / len(mmrs))
-        return average_mmr
-
+            average_mmr = round(sum(mmrs) / len(mmrs))
+            self.verify_tier(average_mmr)
 
     async def save_changes(self):
-        self.mmr = await self.verify_mmr()
-        db_changes = [self.name, self.abbrev, self.mmr, self.wins, self.losses, self.logo, self.color]
-        await dbupdate('data.db', "UPDATE teams SET Name=?, Abbreviation=?, MMR=?, Wins=?, Losses=?, Logo=?, Color=? WHERE ID=?", (*db_changes, self.id,))
+        await self.average_mmr()
+        db_changes = [self.name, self.abbrev, self.mmr, self.tier, self.wins, self.losses, self.logo, self.color]
+        await dbupdate('data.db', "UPDATE teams SET Name=?, Abbreviation=?, MMR=?, Tier=?, Wins=?, Losses=?, Logo=?, Color=? WHERE ID=?", (*db_changes, self.id,))
         await dbupdate('data.db', "UPDATE teams SET Player1=?, Player2=?, Player3=?, Player4=?, Player5=? WHERE ID=?", (*self.roster, self.id,))
         return "Changes commited to database."
 
@@ -191,7 +208,7 @@ class Team(object):
         if len(self.players) == 1:
             player = await Player(ctx, member)
             await dbupdate('data.db', "DELETE FROM teams WHERE ID=?", (player.team.id,))
-            return # DELETE TEAM FROM DB
+            return await member.send(f'You have been removed from **{player.team.name}**. Since you were the last person, the team has been deleted in our database.')  #! DELETE TEAM FROM DB
 
         await dbupdate('data.db', "UPDATE players SET Team=? WHERE ID=?", (None, member.id,))
 
@@ -317,9 +334,14 @@ class DBInsert(object):
 
         player = await Player(ctx, ctx.author)
 
+        if player.mmr >= 1650:
+            tier = 1
+        elif player.mmr < 1650:
+            tier = 2
+
         await dbupdate('data.db', "INSERT INTO teams (ID, Name, Abbreviation, Player1, Player2, Player3, Player4, Player5, \
-            MMR, Wins, Losses, Logo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-            (id, team_name.title(), team_name.upper()[:4], ctx.author.id, None, None, None, None, 2000, 0, 0, config.elevate_logo,))
+            MMR, Tier, Wins, Losses, Logo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+            (id, team_name.title(), team_name.upper()[:4], ctx.author.id, None, None, None, None, 2000, tier, 0, 0, config.elevate_logo,))
         
         player.team = id
         await player.save_changes()
