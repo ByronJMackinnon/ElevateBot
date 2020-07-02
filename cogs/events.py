@@ -28,18 +28,6 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
-        if payload.user_id == self.bot.user.id:
-            return
-        if payload.channel_id == config.to_fix_channel_id:
-            if payload.user_id == 144051124272365569:
-                if str(payload.emoji) == "<:check:723985365362278471>":
-                    msg = await self.bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
-                    embed = msg.embeds[0]
-                    fixed_channel = self.bot.get_channel(config.fixed_channel_id)
-                    fix_msg = await fixed_channel.send(embed=embed)
-                    await msg.delete()
-                    return
-
         check = await dbselect('data.db', "SELECT * FROM invites WHERE MessageID=?", (payload.message_id,))
         if check is None:
             return

@@ -22,7 +22,7 @@ class Admin(commands.Cog):
        await ctx.channel.purge(limit=amount) 
 
     @commands.command(name="nonick")
-    async def _nonick(self, ctx, member: discord.Member):
+    async def _nonick(self, ctx, member: typing.Union[discord.Member, str]):
         if type(member) is discord.Member:
             await member.edit(nick=None)
         else:
@@ -75,21 +75,6 @@ class Admin(commands.Cog):
     async def _search(self, ctx):
         if ctx.invoked_subcommand:
             pass
-
-    @_search.command(name="bugs")
-    async def _search_bugs(self, ctx, member: discord.Member):
-        results = await dbselect_all('data.db', "SELECT * FROM Fixes ORDER BY fixes DESC", ())
-        if member.id not in results:
-            await ctx.send("That player hasn't found any bugs yet.", delete_after=5)
-            return
-        total = await dbselect('data.db', "SELECT count(*) FROM Fixes", ())
-        index = results.index(member.id)
-        bugs = results[index+1]
-        if index == 0:
-            position = 1
-        else:
-            position = (index/2) + 1
-        await ctx.send(f"Player is ranked **#{int(position)}** out of {total} people in bug testing. with a total of {bugs} found.")
 
     @_search.command(name="player")
     async def _search_player(self, ctx, member: discord.Member = None):
