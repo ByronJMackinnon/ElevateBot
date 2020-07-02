@@ -8,13 +8,29 @@ class Admin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    def is_admin(ctx):
+    def cog_check(self, ctx):
         if config.admin_role_id in [role.id for role in ctx.author.roles]:
             return True
         return False
 
+    @commands.command(name="purge")
+    async def _purge(self, ctx, amount: int):
+       await ctx.channel.purge(limit=amount) 
+
+    @commands.command(name="nonick")
+    async def _nonick(self, ctx, member: typing.Union[discord.Member, str]):
+        if type(member) is discord.Member:
+            await member.edit(nick=None)
+        else:
+            if member.lower() == "all":
+                for member in ctx.guild.members:
+                    await member.edit(nick=None)
+
+    @commands.command(name="echo")
+    async def _echo(self, ctx, destination: typing.Union[discord.Member, discord.TextChannel], *, msg):
+        await destination.send(msg)
+
     @commands.group(name='db', aliases=['database'])
-    @commands.check(is_admin)
     async def _db(self, ctx):
         if ctx.invoked_subcommand is None:
             pass
