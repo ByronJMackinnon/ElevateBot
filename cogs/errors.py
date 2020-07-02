@@ -45,12 +45,14 @@ class Errors(commands.Cog):
             # ? Check_any() only throws an error if ALL params are false Doesn't work here.
             if ctx.command.qualified_name == 'player':
                 await ctx.send(f"You'll have to verify in the <#{config.verify_channel}> channel, before you can use this command.")
-            elif ctx.command.qualified)name == 'team leave':
+            elif ctx.command.qualified_name == 'team leave':
                 player = await Player(ctx.author)
                 if player.team is None:
                     await ctx.send('You are not on a team to leave.')
                 else:
                     await player.team.remove_player(ctx, ctx.author)
+            elif ctx.command.qualified_name == 'challenge':
+                await ctx.send("Your team is either, not coming up in the database, or the team has less than 3 players.")
             else:
                 await error_log(ctx, error)
 

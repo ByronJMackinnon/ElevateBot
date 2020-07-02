@@ -62,6 +62,11 @@ async def dbupdate(db, sql, variables):  # Helper function for updating informat
     await db.close()
 
 
+async def chunks(lst, length):
+    length = max(1, length)
+    return list(lst[i:i+length] for i in range(0, len(lst), length))
+
+
 async def team_average(teamID):
     players = await dbselect('data.db', "SELECT Player1, Player2, Player3, Player4, Player5 FROM teams WHERE ID=?", (teamID,))
 

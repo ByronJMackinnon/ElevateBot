@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord.utils import get
 
 import config
-from custom_functions import is_in_database, error_log
+from custom_functions import is_in_database, error_log, mod_log
 from custom_objects import Player, DBInsert
 
 class Teams(commands.Cog):
@@ -28,25 +28,38 @@ class Teams(commands.Cog):
     @commands.group(name='player')
     @commands.check(is_verified)
     async def _player(self, ctx):
-        player = await Player(ctx, ctx.author)
-        footer = None
-        if player.color is None:
-            color = discord.Color.default()
-            footer = "You can set a color value for yourself. using !player edit color <hex>"
-        else:
-            color = discord.Color(value=int(player.color, 16))
+        if ctx.invoked_subcommand is None:
+            player = await Player(ctx, ctx.author)
+            footer = None
+            if player.color is None:
+                color = discord.Color.default()
+                footer = "You can set a color value for yourself. using !player edit color <hex>"
+            else:
+                color = discord.Color(value=int(player.color, 16))
 
-        embed = discord.Embed(color=color, description=player.member.mention)
-        if footer is not None:
-            embed.set_footer(text=footer)
-        embed.add_field(name="MMR:", value=player.mmr)
-        embed.set_author(name=player.name, icon_url=player.member.avatar_url)
-        embed.set_thumbnail(url=player.logo)
-        if player.team is None:
-            embed.add_field(name="Team:", value="**__Free Agent__**", inline=False)
-        else:
-            embed.add_field(name="Team:", value=f'**[{player.team.abbrev}]** | {player.team.name}', inline=False)
-        await ctx.send(embed=embed)
+            embed = discord.Embed(color=color, description=player.member.mention)
+            if footer is not None:
+                embed.set_footer(text=footer)
+            embed.add_field(name="MMR:", value=player.mmr)
+            embed.set_author(name=player.name, icon_url=player.member.avatar_url)
+            embed.set_thumbnail(url=player.logo)
+            if player.team is None:
+                embed.add_field(name="Team:", value="**__Free Agent__**", inline=False)
+            else:
+                embed.add_field(name="Team:", value=f'**[{player.team.abbrev}]** | {player.team.name}', inline=False)
+            await ctx.send(embed=embed)
+
+    @_player.group(name='edit')
+    async def _player_edit(self, ctx):
+        if ctx.invoked_subcommand is None:
+            pass
+
+    @_player_edit.command(name='color')
+    async def _player_edit_color(self, ctx, color):
+        if int(color, 16) > 16777215 or int(color, 16) < 0:
+            return await ctx.send("That is not a valid hex value. (Ex: 000000, ffffff, or ff00a1")
+        player = await Player(ctx, ctx.author)
+        await player.set_color(color)
 
 
     @commands.group(name='team')
@@ -73,11 +86,11 @@ class Teams(commands.Cog):
                     color = discord.Color.default()
                     footer = "You can set a color value for your team. !team edit color <hex> (ex: 00ffff)"
                 else:
-                    if int(player.team.color, 16) > 16777215:
+                    if player.team.color > 16777215:
                         color = discord.Color.default()
                         footer = "Your color value is not set properly. Only the 6 hex values please."
                     else:
-                        color = discord.Color(value=int(player.team.color, 16))
+                        color = discord.Color(value=player.team.color)
 
                 roster = list(filter(None, player.team.players))
                 roster = [member.mention for member in roster]
@@ -94,6 +107,10 @@ class Teams(commands.Cog):
 
     @_team.command(name='create')
     async def _team_create(self, ctx, *, team_name):
+        for swear in config.swears:
+            if swear.lower() in team_name.lower():
+                await ctx.send("Please don't use anything inappropriate for your team name.")
+                await mod_log(ctx, f'(Triggered Swear Detection.)\n{ctx.author.mention} tried making their team name: **{team_name}**')
         await DBInsert.team(self, ctx, team_name)
         team_member_role = get(ctx.guild.roles, id=config.team_member_role_id)
         team_capt_role = get(ctx.guild.roles, id=config.team_captain_role_id)

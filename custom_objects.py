@@ -62,12 +62,18 @@ class Player(object):
 
     async def save_changes(self):
         await self.verify_mmr()
-        db_changes = [self.name, self.team, self.logo]
-        await dbupdate('data.db', "UPDATE players SET Name=?, Team=?, Logo=? WHERE ID=?", (*db_changes, self.member.id,))
+        if isinstance(self.team, Team):
+            self.team = self.team.id
+        db_changes = [self.name, self.team, self.logo, self.color]
+        await dbupdate('data.db', "UPDATE players SET Name=?, Team=?, Logo=?, Color=? WHERE ID=?", (*db_changes, self.member.id,))
         return "Changes commited to database."
 
     async def change_mmr(self, amount):
         self.mmr = self.mmr + amount
+        await self.save_changes()
+
+    async def set_color(self, color):
+        self.color = color
         await self.save_changes()
 
     async def set_logo(self, link):
@@ -122,6 +128,8 @@ class Team(object):
         Teams Losses reported
     logo: :class:`str`
         Teams Logo link.
+    color: :class:`int`
+        Number representation base 16 of color
     """
 
     async def __new__(cls, ctx, TeamID):
@@ -136,6 +144,9 @@ class Team(object):
         for player in raw_players:
             member = get(ctx.guild.members, id=player)  # Get the Member object
             players.append(member)
+
+        if color is not None:
+            color = int(color, 16)
         
         obj = object().__new__(cls)
         object.__setattr__(obj, 'ctx', ctx)
@@ -180,14 +191,22 @@ class Team(object):
             player = await Player(self.ctx, member)
             mmrs.append(player.mmr)
             average_mmr = round(sum(mmrs) / len(mmrs))
-            self.verify_tier(average_mmr)
+            await self.verify_tier(average_mmr)
 
     async def save_changes(self):
         await self.average_mmr()
-        db_changes = [self.name, self.abbrev, self.mmr, self.tier, self.wins, self.losses, self.logo, self.color]
+        db_changes = [self.name, self.abbrev, self.mmr, self.tier, self.wins, self.losses, self.logo, str(self.color)]
         await dbupdate('data.db', "UPDATE teams SET Name=?, Abbreviation=?, MMR=?, Tier=?, Wins=?, Losses=?, Logo=?, Color=? WHERE ID=?", (*db_changes, self.id,))
         await dbupdate('data.db', "UPDATE teams SET Player1=?, Player2=?, Player3=?, Player4=?, Player5=? WHERE ID=?", (*self.roster, self.id,))
         return "Changes commited to database."
+
+    async def change_mmr(self, amount):
+        if amount > 0:
+            self.wins += 1
+        elif amount < 0:
+            self.losses += 1
+        self.mmr += amount
+        await self.save_changes()
 
     async def add_player(self, member):
         if len(self.players) >= 5: # If Team is full.
@@ -254,25 +273,71 @@ class Match(object):
         object.__setattr__(obj, 'complete', complete)
         return obj
 
+    async def expired(self):
+        self.complete = 1
+        for member in self.t1.players:
+            await member.send(f"Your match with **{self.t2.name}** has been cancelled. (Over 92 hours since the challenge was accepted.)")
+        for member in self.t2.players:
+            await member.send(f"Your match with **{self.t1.name}** has been cancelled. (Over 92 hours since the challenge was accepted.)")
+        await mod_log(self.ctx, f"{self.t2.name} let their match against {self.t1.name} expire. ({config.series_timeout} hours.)")
+
+    async def save_changes(self):
+        db_changes = [self.wl1, self.wl2, self.complete]
+        await dbupdate('data.db', "UPDATE matches SET WL1=?, WL=2, Complete=? WHERE ID=?", (*db_changes, self.id,))
+
     async def won(self, member):
         if member.id in self.team1.players:
-            pass
+            self.wl1 = "W"
+            self.wl2 = "L"
+            self.complete = 1
+            if self.team1.mmr > self.team2.mmr:
+                await self.team1.change_mmr(self.loss)
+                await self.team2.change_mmr(self.loss * -1)
+            elif self.team1.mmr < self.team2.mmr:
+                await self.team1.change_mmr(self.gain)
+                await self.team2.change_mmr(self.gain * -1)
 
         elif member.id in self.team2.players:
-            pass
+            self.wl1 = "L"
+            self.wl2 = "W"
+            self.complete = 1
+            if self.team1.mmr > self.team2.mmr:
+                await self.team2.change_mmr(self.gain)
+                await self.team1.change_mmr(self.gain * -1)
+            elif self.team1.mmr < self.team2.mmr:
+                await self.team2.change_mmr(self.loss)
+                await self.team1.change_mmr(self.loss * -1)
 
         else:
             return "You can't report this match since you didn't play in it."
+        await self.save_changes()
 
     async def loss(self, member):
         if member.id in self.team1.players:
-            pass
+            self.wl1 = "L"
+            self.wl2 = "W"
+            self.complete = 1
+            if self.team1.mmr > self.team2.mmr:
+                await self.team2.change_mmr(self.gain)
+                await self.team1.change_mmr(self.gain * -1)
+            elif self.team1.mmr < self.team2.mmr:
+                await self.team2.change_mmr(self.loss)
+                await self.team1.change_mmr(self.loss * -1)
 
         elif member.id in self.team2.players:
-            pass
+            self.wl1 = "W"
+            self.wl2 = "L"
+            self.complete = 1
+            if self.team1.mmr > self.team2.mmr:
+                await self.team1.change_mmr(self.loss)
+                await self.team2.change_mmr(self.loss * -1)
+            elif self.team1.mmr < self.team2.mmr:
+                await self.team1.change_mmr(self.gain)
+                await self.team2.change_mmr(self.gain * -1)
 
         else:
             return "You can't report this match since you didn't play in it."
+        await self.save_changes()
 
 
 class Invite(object):
@@ -297,11 +362,11 @@ class Invite(object):
     async def __new__(cls, ctx, InviteID):
         id_lost, channel_id, message_id, challenger, challenged, inviter = await dbselect('data.db', "SELECT * FROM invites WHERE ID=?", (InviteID,))
         
-        guild = ctx.bot.get_guild(config.server_id)  # Guild Object
-        channel = ctx.bot.get_channel(channel)  # Channel Object
-        message = await channel.fetch_message(message_id)  # Message Object
-        challenger = await Team(ctx, challenger)  # Team Object
-        challenged = await Team(ctx, challenged)  # Team Object
+        guild = ctx.bot.get_guild(config.server_id)  #INFO Guild Object
+        channel = ctx.bot.get_channel(channel)  #INFO Channel Object
+        message = await channel.fetch_message(message_id)  #INFO Message Object
+        challenger = await Team(ctx, challenger)  #INFO Team Object
+        challenged = await Team(ctx, challenged)  #INFO Team Object
         inviter = await Player(get(guild.members, id=inviter))  #Player Object
 
         obj = object().__new__(cls)
@@ -317,6 +382,9 @@ class Invite(object):
     async def cancel(self):
         if self.ctx.author.id in [player.member.id for player in self.challenger.players] or config.admin_role_id in [role.id for role in self.ctx.author.roles]:
             await dbupdate('data.db', "DELETE FROM invites WHERE ID=?", (self.id,))
+            await self.message.delete()
+            for member in self.challenged.players:
+                await member.send("Your team was challenged to an invite, however the invite has since been cancelled. (From **{self.challenger.name}**)")
             return "Invite deleted from database."
 
 
@@ -340,8 +408,22 @@ class DBInsert(object):
             tier = 2
 
         await dbupdate('data.db', "INSERT INTO teams (ID, Name, Abbreviation, Player1, Player2, Player3, Player4, Player5, \
-            MMR, Tier, Wins, Losses, Logo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+            MMR, Tier, Wins, Losses, Logo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
             (id, team_name.title(), team_name.upper()[:4], ctx.author.id, None, None, None, None, 2000, tier, 0, 0, config.elevate_logo,))
         
         player.team = id
         await player.save_changes()
+    
+    async def invite(self, ctx, team1, team2):
+        identifier = await dbselect('data.db', "SELECT count(*) FROM invites", ())
+        await dbupdate('data.db', "INSERT INTO invites (ID, Channel, Message, Challenger, Challenged, Inviter) VALUES (?, ?, ?, ?, ?, ?)", 
+            (identifier, ctx.channel.id, ctx.message.id, team1.id, team2.id, ctx.author.id,))
+
+    async def match(self, ctx, invite):
+        mmr_diff = abs(invite.challenger.mmr - invite.challenged.mmr)
+        gain, loss = await calc_mmr_match_value(mmr_diff)
+        timeout = datetime.now()+timedelta(hours=config.series_timeout)
+        identifier = await dbselect('data.db', 'SELECT count(*) FROM matches')
+        identifier += 1
+        await dbupdate('data.db', "INSERT INTO matches (ID, Team1, Team2, WL1, WL2, Gain, Loss, Timeout, Complete) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (identifier, invite.challenger.id, invite.challenged.id, None, None, gain, loss, timeout, 0))
