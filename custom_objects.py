@@ -227,6 +227,7 @@ class Team(object):
         if len(self.players) == 1:
             player = await Player(ctx, member)
             await dbupdate('data.db', "DELETE FROM teams WHERE ID=?", (player.team.id,))
+            await dbupdate('data.db', "UPDATE players SET Team=? WHERE ID=?", (None, member.id,))
             return await member.send(f'You have been removed from **{player.team.name}**. Since you were the last person, the team has been deleted in our database.')  #! DELETE TEAM FROM DB
 
         await dbupdate('data.db', "UPDATE players SET Team=? WHERE ID=?", (None, member.id,))
@@ -255,6 +256,13 @@ class Team(object):
     async def set_color(self, color):
         self.color = color
         await self.save_changes()
+
+    def __repr__(self):
+        total_games = self.wins + self.losses
+        return '<Team id={0.id} name={0.name} abbreviation={0.abbrev} mmr={0.mmr} games={1} logo={0.logo}>'.format(self, total_games)
+
+    def __str__(self):
+        return "[{0.abbrev}] | {0.name}".format(self)
 
 class Match(object):
     async def __new__(cls, ctx, MatchID):

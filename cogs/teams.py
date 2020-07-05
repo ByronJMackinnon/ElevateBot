@@ -61,6 +61,27 @@ class Teams(commands.Cog):
         player = await Player(ctx, ctx.author)
         await player.set_color(color)
 
+    @_player_edit.command(name='logo')
+    async def _player_edit_logo(self, ctx, link):
+        player = await Player(ctx, ctx.author)
+        if not link.startswith('http'):
+            return await ctx.send("Link is not well formed. Please send the entire link, and ensure it is directly to the picture.")
+        await player.set_logo(link)
+
+    @_player_edit.command(name='name')
+    async def _player_edit_name(self, ctx, new_name):
+        for swear in config.swears:
+            if swear.lower() in new_name.lower():
+                return await ctx.send("Please don't use any inappropriate words.")
+        player = await Player(ctx, ctx.author)
+        print(player.team)
+        if player.team is None:
+            await ctx.author.edit(nick=new_name)
+        else:
+            print(player.team)
+            await ctx.send(f'{player.team}, {type(player.team)}')
+            await ctx.author.edit(nick=f'{player.team.abbrev} | {new_name}')
+        await player.set_name(new_name)
 
     @commands.group(name='team')
     async def _team(self, ctx):
