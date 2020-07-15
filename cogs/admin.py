@@ -25,10 +25,13 @@ class Admin(commands.Cog):
     async def _nonick(self, ctx, member: typing.Union[discord.Member, str]):
         if type(member) is discord.Member:
             await member.edit(nick=None)
-        else:
+        elif type(member) is str:
             if member.lower() == "all":
-                for member in ctx.guild.members:
-                    await member.edit(nick=None)
+                for person in ctx.guild.members:
+                    if person.bot:
+                        pass
+                    else:
+                        await person.edit(nick=None)
 
     @commands.command(name="echo")
     async def _echo(self, ctx, destination: typing.Union[discord.Member, discord.TextChannel], *, msg):

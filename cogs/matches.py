@@ -43,6 +43,11 @@ class Challenges(commands.Cog):
 
         challenged_players = [f'<@{player_id}>' for player_id in challenged.team.players]
 
+        if len(challenger_players) < 3:
+            return await ctx.author.send("Your team has less than 3 players. Therefore you cannot challenge another team.")
+        if len(challenged_players) < 3:
+            return await ctx.author.send("The team you challenged does not currently have enough players to complete a match.")
+
         embed = discord.Embed(color=0x00ffff, description=f"{challenged.team.name} has been challenged by {challenger.team.name}. Are you interested?")
         embed.add_field(name="Roster:", value=', '.join(challenger_players))
         embed.add_field(name="Team Stats:", value=f'Wins: {challenger.team.wins}\nLosses: {challenger.team.losses}\nTotal Games: {challenger.team.wins + challenger.team.losses}', inline=False)

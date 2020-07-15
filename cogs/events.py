@@ -24,7 +24,8 @@ class Events(commands.Cog):
         for id, timeout in enumerate(timeouts, 1):
             if timeout <= datetime.now():
                 match = Match(id)
-                await match.timeout(ctx)
+                guild = self.bot.get_guild(config.server_id)
+                await match.timeout(guild)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):

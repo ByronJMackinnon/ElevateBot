@@ -266,7 +266,7 @@ class Match(object):
         self.timeoutdate = timeoutdate
         self.complete = complete
 
-    async def timeout(self, ctx):
+    async def timeout(self, guild):
         team1, team2 = await dbselect('data.db', "SELECT Team1, Team2 FROM matches WHERE ID=?", (self.id,))
         team1 = Team(team1)
         team2 = Team(team2)
@@ -275,7 +275,7 @@ class Match(object):
 
         players = team1.players + team2.players
         for player in players:
-            member = get(ctx.guild.members, id=player)
+            member = get(guild.members, id=player)
             await member.send(embed=embed)
 
 class DBInsert(object):  # Helper Object for Modular addition of database fields.
