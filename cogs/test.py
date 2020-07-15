@@ -1,3 +1,4 @@
+import os
 import traceback
 from datetime import datetime, timedelta
 
@@ -18,14 +19,7 @@ class TestCog(commands.Cog):
     @commands.command(name="test")
     async def _test(self, ctx):
         #await dbupdate('data.db', "UPDATE test SET ti=?", (datetime.now()+timedelta(hours=config.series_timeout),))
-        dtobj = await dbselect('data.db', "SELECT ti FROM test", ())
-        dtobj = datetime.strptime(dtobj, '%Y-%m-%d %H:%M:%S.%f')
-        if dtobj > datetime.now():
-            return await ctx.send("Database is more than now")
-        elif dtobj < datetime.now():
-            return await ctx.send("Database is less than now.")
-        else:
-            return await ctx.send("I have no fucking clue.")
+        pass
 
 def setup(bot):
     bot.add_cog(TestCog(bot))

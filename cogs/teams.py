@@ -128,6 +128,8 @@ class Teams(commands.Cog):
 
     @_team.command(name='create')
     async def _team_create(self, ctx, *, team_name):
+        if config.team_member_role_id in [role.id for role in ctx.author.roles]:
+            return await ctx.send("Sorry, you already belong to a team, leave that team first, then create your own.", delete_after=10)
         for swear in config.swears:
             if swear.lower() in team_name.lower():
                 await ctx.send("Please don't use anything inappropriate for your team name.")

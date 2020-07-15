@@ -43,6 +43,24 @@ async def on_ready():
         added_players = '\n'.join(new_players)
         await bman.send(f'{len(new_players)} added to the database.\n```{added_players}```')
 
+@bot.command(name='lines')
+@commands.is_owner()
+async def _lines(ctx):
+    paths = []
+    main_files = os.listdir()
+    for extension in main_files:
+        if extension.endswith('.py'):
+            paths.append(extension)
+    for extension in os.listdir('./cogs'):
+        if extension.endswith('.py'):
+            paths.append(f'cogs/{extension}')
+    lines_of_code = 0
+    for file in paths:
+        with open(file, 'r') as f:
+            for line in f:
+                lines_of_code += 1
+    await ctx.send(f"It took <@{144051124272365569}> {format(lines_of_code, ',')} lines of code to create ElevateBot.", allowed_mentions=discord.AllowedMentions(users=False))
+
 @bot.command(name="restart")
 @commands.is_owner()
 async def _restart(ctx):
