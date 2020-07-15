@@ -23,6 +23,41 @@ class Teams(commands.Cog):
             return True
         return False
 
+    @commands.group(name='player')
+    async def _player(self, ctx):
+        if ctx.invoked_subcommand is None:
+            player = Player(ctx.author)
+            await player.get_stats()
+
+            embed = discord.Embed(color=0x00ffff, description=f"MMR: {player.mmr}")
+            embed.set_thumbnail(url=player.logo)
+            embed.set_author(name=f'{ctx.author.name}#{ctx.author.discriminator}', icon_url=ctx.author.avatar_url)
+            if player.team is None:
+                await ctx.send(embed=embed)
+            else:
+                team_players = ', '.join([f'<@{mem_id}>' for mem_id in player.team.players])
+                embed.add_field(name=f'[{player.team.abbrev}] | {player.team.name}', value=f"MMR: {player.team.mmr}\nWins: {player.team.wins}\nLosses: {player.team.losses}\n Total Games: {player.team.wins + player.team.losses}\nRoster: {team_players}")
+                embed.set_image(url=player.team.logo)
+                await ctx.send(embed=embed)
+
+    @_player.group(name='edit')
+    async def _player_edit(self, ctx):
+        if ctx.invoked_subcommand is None:
+            pass
+
+    @_player_edit.command(name='logo')
+    async def _player_edit_logo(self, ctx, link = None):
+        player = Player(ctx.author)
+        await player.get_stats()
+
+        if link is None:
+            if len(ctx.message.attachments) == 0:
+                await player.edit_logo(ctx.author.avatar_url)
+            else:
+                await player.edit_logo(ctx.message.attachments[0].url)
+        else:
+            await player.edit_logo(link)
+
     
     @commands.command(name="updatemylogo", usage="<Link/File>")
     async def _updatemylogo(self, ctx, link = None):

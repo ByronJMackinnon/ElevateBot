@@ -57,6 +57,22 @@ class Challenges(commands.Cog):
 
         await dbupdate('data.db', "INSERT INTO invites (Channel, MessageID, Challenger, Challenged, Inviter) VALUES (?, ?, ?, ?, ?)", (channel, msg.id, challenger.team.id, challenged.team.id, ctx.author.id,))
 
+        reaction, user = await self.bot.wait_for('reaction_add')
+
+        player = Player(user)
+        await player.get_stats()
+
+        if player.team == challenged.team:
+            if str(reaction) == config.checkmark_emoji:
+                await ctx.send("Okay, match is a go!")
+                return await DBInsert.match(player.team.id, challenged.team)
+
+            elif str(reaction) == config.cross_emoji:
+                return await ctx.send("Okay, no match.")
+        
+        else:
+            pass
+
 
 class Reports(commands.Cog):
     def __init__(self, bot):
