@@ -33,7 +33,7 @@ class Events(commands.Cog):
         if check is None:
             return
         print(check)
-        channel, msgID, challenger, challenged, inviter = check
+        invite_id, channel, msgID, challenger, challenged, inviter = check
         challenger = Team(challenger)
         await challenger.get_stats()
 

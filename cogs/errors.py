@@ -20,6 +20,9 @@ class ErrorHandler(commands.Cog):
         error : Exception
         """
 
+        print('Ignoring exception in command {}:'.format(ctx.command), file=sys.stderr)
+        traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
+
         if hasattr(ctx.command, 'on_error'):
             return
         
@@ -48,9 +51,6 @@ class ErrorHandler(commands.Cog):
         mod_channel = get(ctx.guild.text_channels, id=config.mod_channel)
         
         await mod_channel.send(embed=embed)
-
-        print('Ignoring exception in command {}:'.format(ctx.command), file=sys.stderr)
-        traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
 
 def setup(bot):
     bot.add_cog(ErrorHandler(bot))

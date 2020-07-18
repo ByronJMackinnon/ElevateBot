@@ -67,7 +67,7 @@ class Challenges(commands.Cog):
         player = Player(user)
         await player.get_stats()
 
-        if player.team == challenged.team:
+        if player.team.id == challenged.team.id:
             if str(reaction) == config.checkmark_emoji:
                 await ctx.send("Okay, match is a go!")
                 return await DBInsert.match(player.team.id, challenged.team)
@@ -110,6 +110,7 @@ class Reports(commands.Cog):
             return
 
         match = Match(matchID)
+        await match.get_stats()
 
         if ctx.author.id in match.team1.players:
             my_team = match.team1
@@ -127,46 +128,46 @@ class Reports(commands.Cog):
                 for player in my_team.players:
                     player = get(ctx.guild.members, id=player)
                     player = Player(player)
-                    player.mmr_change(match.loss)
+                    await player.mmr_change(match.loss)
 
                 for player in other_team.players:
                     player = get(ctx.guild.members, id=player)
                     player = Player(player)
-                    player.mmr_change(match.loss * -1)
+                    await player.mmr_change(match.loss * -1)
 
             elif my_team.mmr < other_team.mmr:
                 for player in my_team.players:
                     player = get(ctx.guild.members, id=player)
                     player = Player(player)
-                    player.mmr_change(match.gain)
+                    await player.mmr_change(match.gain)
 
                 for player in other_team.players:
                     player = get(ctx.guild.members, id=player)
                     player = Player(player)
-                    player.mmr_change(match.gain * -1)
+                    await player.mmr_change(match.gain * -1)
 
         elif winorloss.lower() in ['l', 'loss', 'lost']:  # Reporter Lost
             if my_team.mmr > other_team.mmr:
                 for player in my_team.players:
                     player = get(ctx.guild.members, id=player)
                     player = Player(player)
-                    player.mmr_change(match.gain * -1)
+                    await player.mmr_change(match.gain * -1)
 
                 for player in other_team.mmr:
                     player = get(ctx.guild.members, id=player)
                     player = Player(player)
-                    player.mmr_change(match.gain)
+                    await player.mmr_change(match.gain)
 
             elif my_team.mmr < other_team.mmr:
                 for player in my_team.players:
                     player = get(ctx.guild.members, id=player)
                     player = Player(player)
-                    player.mmr_change(match.loss * -1)
+                    await player.mmr_change(match.loss * -1)
 
                 for player in other_team.players:
                     player = get(ctx.guild.members, id=player)
                     player = Player(player)
-                    player.mmr_change(match.loss)
+                    await player.mmr_change(match.loss)
 
         reporter = Player(ctx.author)
         await reporter.get_stats()

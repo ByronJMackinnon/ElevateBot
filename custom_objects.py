@@ -29,7 +29,7 @@ class Player(object):  # Helper Object for Player Database Management
             self.team = team_class
 
     async def mmr_change(self, amount):  # Updates individuals MMR. Important when cycling through players.
-        await dbupdate("data.db", "UPDATE players SET MMR=MMR+?, WHERE ID=?", (amount, self.member.id,))
+        await dbupdate("data.db", "UPDATE players SET MMR=MMR+? WHERE ID=?", (amount, self.member.id,))
 
     async def edit_logo(self, link):  # Updates players profile image.
         await dbupdate('data.db', 'UPDATE players SET Logo=? WHERE ID=?', (str(link), self.member.id,))
@@ -316,7 +316,7 @@ class DBInsert(object):  # Helper Object for Modular addition of database fields
         team_captain_role = get(ctx.guild.roles, id=config.team_captain_role_id)
         await ctx.author.add_roles(team_member_role, team_captain_role)
         await ctx.author.edit(nick=f"{abbrev.upper()} | {ctx.author.name}")
-        await ctx.author.send(f"Your team has been successfully registered. **[{abbrev}]** | {name.title()}")
+        await ctx.send(f"Your team has been successfully registered. **[{abbrev}]** | {name.title()}", delete_after=5)
 
     async def match(self, team1, team2):  # Inserts new entry into the 'matches' table in the database.
         id = await dbselect('data.db', "SELECT count(*) FROM matches", ())
