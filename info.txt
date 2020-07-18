@@ -1,0 +1,70 @@
+class Player:
+    - Ctx: discord.Context | Context object for simplicity.
+    - Member: discord.Member
+    - MMR: int | Rocket League 3's Rank.
+    - Team: <Custom class Team>
+    - Logo: str | Website Link to Picture.
+    - API_ID: str | API Key for API Request for RL MMR
+    - Color: discord.Color
+
+    @save(): commit to database
+
+    __add__(amount) | Change MMR
+
+    __sub__(amount) | Change MMR
+
+class Team:
+    - Ctx: discord.Context | Context object for simplicity.
+    - ID: int | Team's Unique Identifier
+    - Name: str | Team's Name
+    - Abbreviation: str | Team's Abbreviation (4 Letter Maximum)
+    - Player_1: <Custom class Player>
+    - Player_2: <Custom class Player>
+    - Player_3: <Custom class Player>
+    - Player_4: <Custom class Player>
+    - Player_5: <Custom class Player>
+    - MMR: int | NOT RANKED BASED. Strictly League Play.
+    - Average: int | RANKED BASED. 3's
+    - Tier: int | 1600+ = Tier 1 Else: Tier 2
+    - Wins: int | Team Wins
+    - Losses: int | Team Losses
+    - Logo: str | Link to picture for Team
+    - Color: discord.Color
+
+    @save(): commit to database
+
+    @add_player(<Custom class Player>)
+
+    @remove_player(<Custom class Player>)
+
+    @increase/decrease_wins/losses/mmr(target, amount)
+
+class Invite:
+    - Ctx: discord.Context | Context object for simplicity.
+    - ID: int | Invite's Unique Identifier
+    - Channel: discord.TextChannel | Channel the invite was sent in.
+    - MessageID: discord.Message | Message that contained the challenge. (Used for database reference later.)
+    - Challenger: <Custom class Team> | Team that challenged
+    - Challenged: <Custom class Team> | Team that was challenged
+    - Inviter: <Custom class Player> | Player object of member that invited.
+    - Timeout: datetime | Datetime object for when invite times out.
+
+class Match:
+    - Ctx: discord.Context | Context object for simplicity.
+    - ID: int | Match's Unique Identifier
+    - Challenger: <Custom class Team> | Team object of team that challenged.
+    - Challenged: <Custom class Team> | Team object of team that was challenged.
+    - WL1: str | Either 'W' or 'L' to signify whether Team 1, won or lost.
+    - WL2: str | Either 'W' or 'L' to signify whether Team 1, won or lost.
+    - High: int | Potential Gains if underdog wins.
+    - Low: int | Potential Gains if underdog losses.
+    - Timeout: datetime | A datatime object {config.series_timeout} hours ahead of when challenge was accepted.
+
+class DBInsert:
+    @player(member)
+
+    @match(team1, team2)
+
+    @invite(ctx, team1, team2)
+
+    @team(ctx, name)
