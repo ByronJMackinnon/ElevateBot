@@ -23,6 +23,7 @@ class Team:
     - Player_3: <Custom class Player>
     - Player_4: <Custom class Player>
     - Player_5: <Custom class Player>
+    - Last_game: datetime | Time this teams last game was played.
     - MMR: int | NOT RANKED BASED. Strictly League Play.
     - Average: int | RANKED BASED. 3's
     - Tier: int | 1600+ = Tier 1 Else: Tier 2

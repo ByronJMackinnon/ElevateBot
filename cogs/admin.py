@@ -1,9 +1,11 @@
 from datetime import datetime
 import typing
 
+import aiohttp
 import discord
 from discord.ext import commands
 
+from botToken import rp_gg_base, rp_gg_token
 import config
 from custom_functions import dbselect, dbupdate, dbselect_all
 from custom_objects import Player, Team, Match
@@ -16,6 +18,11 @@ class Admin(commands.Cog):
         if config.admin_role_id in [role.id for role in ctx.author.roles]:
             return True
         return False
+
+    @commands.command(name='test')
+    async def _test(self, ctx):
+        results = await dbselect_all('data.db', "SELECT * FROM players", ())
+        print(results)
 
     @commands.command(name="purge")
     async def _purge(self, ctx, amount: int):
@@ -83,29 +90,22 @@ class Admin(commands.Cog):
     async def _search_player(self, ctx, member: discord.Member = None):
         if member is None:
             member = ctx.author
-            return
 
-        player = Player(member)
-        await player.get_stats()
+        player = await Player(ctx, member)
 
         embed = discord.Embed(color=0x00ffff)
-        embed.set_author(name=player.name, icon_url=player.logo)
+        embed.set_author(name=f'{player.member.name}#{player.member.discriminator}', icon_url=player.member.avatar_url)
+        embed.set_thumbnail(url=player.logo)
         if player.mmr is None:
             embed.add_field(name="MMR:", value="Not yet verified.")
         else:
             embed.add_field(name="MMR:", value=player.mmr)
         if player.team is None:
-            embed.add_field(name="Team:", value="Free Agent")
+            embed.add_field(name="Team:", value="Free Agent", inline=False)
             embed.set_footer(text=f"Player ID: {player.member.id}", icon_url=config.elevate_logo)
         else:
-            embed.add_field(name="Team:", value=f"""**[{player.team.abbrev}]** | {player.team.name}
-            MMR: {player.team.mmr}
-            Wins: {player.team.wins}
-            Losses: {player.team.losses}
-            Total Games: {player.team.wins + player.team.losses}
-            Roster: {', '.join([f'<@{player_id}>' for player_id in player.team.players])}""", inline=False)
+            embed.add_field(name="Team:", value=str(player.team), inline=False)
             embed.set_footer(text=f"Player ID: {player.member.id} | Team ID: {player.team.id}")
-            embed.set_thumbnail(url=player.team.logo)
 
         await ctx.send(embed=embed)
 
@@ -116,26 +116,24 @@ class Admin(commands.Cog):
         elif type(id) is str:
             id = await dbselect("data.db", "SELECT id FROM teams WHERE Name=?", (id.title(),))
 
-        team = Team(id)
-        await team.get_stats()
+        team = await Team(ctx, id)
 
-        embed = discord.Embed(title="Team Search", color=0x00ffff, description=f'**{team.abbrev}** | {team.name}')
+        embed = discord.Embed(title="Team Search", color=0x00ffff, description=str(team))
         embed.add_field(name="MMR:", value=team.mmr)
         embed.add_field(name="Stats:", value=f'Wins: {team.wins}\nLosses: {team.losses}\nTotal Games: {team.wins + team.losses}', inline=False)
         embed.set_thumbnail(url=team.logo)
         embed.set_footer(text=f"Team ID: {team.id}")
-        embed.add_field(name="Roster:", value=', '.join([f'<@{player_id}>' for player_id in team.players]), inline=False)
+        embed.add_field(name="Roster:", value=', '.join([member.mention for member in team.members]), inline=False)
 
         await ctx.send(embed=embed)
 
     @_search.command(name="match")
     async def _search_match(self, ctx, matchID):
-        match = Match(matchID)
-        await match.get_stats()
+        match = await Match(ctx, matchID)
 
         embed = discord.Embed(title="Match Search", color=0x00ffff)
-        embed.add_field(name=f"**[{match.team1.abbrev}]** | {match.team1.name} | {match.wl1}", value=', '.join([f'<@{player_id}>' for player_id in match.team1.players]))
-        embed.add_field(name=f"**[{match.team2.abbrev}]** | {match.team2.name} | {match.wl2}", value=', '.join([f'<@{player_id}>' for player_id in match.team2.players]), inline=False)
+        embed.add_field(name=f"{str(match.team1)} | {match.wl1}", value=', '.join([f'<@{player_id}>' for player_id in match.team1.players]))
+        embed.add_field(name=f"{str(match.team2)} | {match.wl2}", value=', '.join([f'<@{player_id}>' for player_id in match.team2.players]), inline=False)
 
         await ctx.send(embed=embed)
 
@@ -160,7 +158,7 @@ class Admin(commands.Cog):
         embed.set_thumbnail(url=member.avatar_url)
         embed.add_field(name="Created At:", value=getDuration(member.created_at), inline=False)
         embed.add_field(name="Joined At:", value=getDuration(member.joined_at), inline=False)
-        embed.add_field(name="Roles:", value=', '.join(clean_roles), inline=False)
+        embed.add_field(name="Roles:", value=' '.join(clean_roles), inline=False)
 
         await ctx.send(embed=embed)
 

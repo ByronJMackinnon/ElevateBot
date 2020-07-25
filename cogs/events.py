@@ -1,71 +1,85 @@
-from datetime import datetime
+import asyncio
 
+import aiohttp
+import discord
 from discord.ext import commands, tasks
-from discord.utils import get
 
 import config
-from custom_functions import dbupdate, dbselect, dbselect_all
-from custom_objects import Team, DBInsert
+from botToken import rp_gg_base, rp_gg_token
+from custom_functions import dbselect, dbupdate
+from custom_objects import DBInsert, Invite
 
 class Events(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.timeout_scan.start()
+        self.mmr_cycle.start()
 
     def cog_unload(self):
-        self.timeout_scan.cancel()
+        self.mmr_cycle.cancel()
 
-    @tasks.loop(seconds=60.0)
+    @tasks.loop(minutes=1)
     async def timeout_scan(self):
-        timeouts = dbselect_all('data.db', "SELECT Timeout FROM matches", ())
-        if timeouts is None:
-            return
-        timeouts = [datetime.strptime(dt, "%Y-%m-%d %H:%M") for dt in timeouts]
-        for id, timeout in enumerate(timeouts, 1):
-            if timeout <= datetime.now():
-                match = Match(id)
-                guild = self.bot.get_guild(config.server_id)
-                await match.timeout(guild)
+        await self.bot.wait_until_ready()
+
+    @tasks.loop(seconds=1)
+    async def mmr_cycle(self):
+        await self.bot.wait_until_ready()
+        guild = self.bot.get_guild(config.server_id)
+        bman = guild.get_member(config.bman_id)
+        for member in guild.members:
+            if member.bot:
+                pass
+            else:
+                error_occured = False
+                current_mmr, api_id = await dbselect('data.db', "SELECT MMR, API_ID FROM players WHERE ID=?", (member.id,))
+                if api_id == None:
+                    pass
+                else:
+                    headers = {'Authorization': rp_gg_token}
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(f'{rp_gg_base}/skills/get-player-skill?PlayerID={api_id}', headers=headers) as mmr_resp:
+                            mmr_js = await mmr_resp.json()
+                            player_mmr_list = mmr_js['Result']['Skills']
+                            my_item = next((item for item in player_mmr_list if item["Playlist"] == 13), None)
+                            player_mmr_raw = my_item["MMR"]
+                            player_mmr = round((float(player_mmr_raw) * 20) + 100)
+                            print(f'{member.name}#{member.discriminator} - MMR Now: {type(player_mmr)} MMR Before: {type(current_mmr)}')
+                            await dbupdate('data.db', "UPDATE players SET MMR=? WHERE ID=?", (player_mmr, member.id,))
+                            delay = 3600 // guild.member_count
+                            await asyncio.sleep(delay)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
-        check = await dbselect('data.db', "SELECT * FROM invites WHERE MessageID=?", (payload.message_id,))
-        if check is None:
+        if payload.user_id == self.bot.user.id:
             return
-        print(check)
-        channel, msgID, challenger, challenged, inviter = check
-        challenger = Team(challenger)
-        await challenger.get_stats()
+        message = await self.bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
+        ctx = await self.bot.get_context(message)
 
-        challenged = Team(challenged)
-        await challenged.get_stats()
+        invite_id = await dbselect('data.db', "SELECT ID FROM invites WHERE Message=?", (message.id,))
 
-        if payload.user_id not in challenged.players:
+        invite = await Invite(ctx, invite_id)
+
+        if payload.user_id in [member.id for member in invite.challenged.members]:
+            if str(payload.emoji) == config.checkmark_emoji:
+                await DBInsert.match(ctx, invite.challenger, invite.challenged)
+                await invite.message.clear_reactions()
+                await dbupdate('data.db', "DELETE FROM invites WHERE ID=?", (invite.id,))
+
+            elif str(payload.emoji) == config.cross_emoji:
+                await invite.message.clear_reactions()
+                await dbupdate('data.db', "DELETE FROM invites WHERE ID=?", (invite.id,))
+
+                embed = discord.Embed(color=0xff0000, description=f"{str(invite.challenged)} denied your request for a series.")
+
+                await ctx.send(embed=embed)
+        else:
             return
 
-        await DBInsert.match(challenger.id, challenged.id)
-
     @commands.Cog.listener()
-    async def on_member_join(self, member):  # When a member joins the server
-        """Checks if the members is already in the database, if not, create a new entry for them."""
-        check = await dbselect('data.db' 'SELECT ID FROM players WHERE ID=?', (member.id,))
+    async def on_member_join(self, member):
+        await DBInsert.player(member)
 
-        if check is None:
-            if not member.bot:
-                await DBInsert.member(member)
 
-        await dbupdate('data.db', 'UPDATE stats SET Members=?', (member.guild.member_count,))
-
-    @commands.Cog.listener()
-    async def on_member_remove(self, member):  # When a member leaves the server
-        """Update member count in the database 'stats' table."""
-        await dbupdate('data.db', 'UPDATE stats SET Members=?', (member.guild.member_count,))
-
-    @commands.Cog.listener()
-    async def on_member_update(self, before, after):
-        """If a member updates their name or discriminator, I reflect that change in the database."""
-        if before.name != after.name or before.discriminator != after.discriminator:
-            await dbupdate("data.db", "UPDATE players SET Name=? WHERE ID=?", (f'{after.name}#{after.discriminator}', after.id,))
 
 def setup(bot):
     bot.add_cog(Events(bot))

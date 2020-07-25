@@ -1,9 +1,11 @@
 # Standard Imports
 import typing
+import asyncio
 
 # 3rd Party Imports
 import requests_async as requests
-import asyncio
+
+from oauth2client.service_account import ServiceAccountCredentials
 
 import aiosqlite
 import discord
@@ -11,6 +13,7 @@ from discord.utils import get
 
 # Custom Imports
 import config
+from errors import CodeError
 from botToken import rp_gg_token, rp_gg_base
 
 async def dbselect_all(db, sql, variables):
@@ -58,6 +61,11 @@ async def dbupdate(db, sql, variables):  # Helper function for updating informat
     await cursor.close()
     await db.close()
 
+async def is_in_database(*, sql):
+    check = await dbselect('data.db', sql, ())
+    if check is None:
+        return False
+    return True
 
 async def team_average(teamID):
     players = await dbselect('data.db', "SELECT Player1, Player2, Player3, Player4, Player5 FROM teams WHERE ID=?", (teamID,))
@@ -77,15 +85,15 @@ async def team_average(teamID):
 
 async def calc_mmr_match_value(diff):
     if diff >= 0 and diff < 25:
-        value = 9, 9
+        value = 13, 13
     elif diff >= 25 and diff < 50:
-        value = 10, 8
+        value = 14, 12
     elif diff >= 50 and diff < 75:
-        value = 11, 7
+        value = 15, 11
     elif diff >= 75 and diff < 100:
-        value = 12, 6
+        value = 16, 10
     else:
-        value = 13, 5
+        value = 17, 9
     return value
 
 async def alert(ctx, message):
@@ -104,3 +112,40 @@ async def send_confirm(ctx, message):
     embed = discord.Embed(title="Success.", color=0x00ff00, description=message)
     embed.set_footer(text="Powered by rocket-planet.gg", icon_url=config.rp_gg_logo)
     await ctx.send(embed=embed, delete_after=5)
+
+async def raw_color(color): # Returns raw integer value from most typed of color objects.
+    if isinstance(color, discord.Color):
+        color = color.value
+    elif isinstance(color, int):
+        pass
+    elif isinstance(color, str):
+        try:
+            color = int(color, 16)
+        except Exception as e:
+            raise CodeError(f"Color parameter passed to the `raw_color` function was not anticipated. Type: {color} Value: {color}")
+    else:
+        raise CodeError(f'Color parameter passed to the `raw_color` function was not [discord.Color, int or str] {type(color)} - {color}')
+    
+    print("Color passed all checks.", type(color), color)
+    return color
+
+def get_creds():
+    return ServiceAccountCredentials.from_json_keyfile_name("elevate-creds.json", 
+        [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/spreadsheets",
+        ]
+    )
+
+async def gspread_update(agcm):
+    agc = await agcm.authorize()
+
+    ss = await agc.open("Elevate")
+    sheet = ss.sheet1
+
+    return sheet
+
+
+
+    
