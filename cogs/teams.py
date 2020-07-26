@@ -14,6 +14,16 @@ class Teams(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    async def is_captain(ctx):
+        if config.team_captain_role_id in [role.id for role in ctx.author.roles]:
+            return True
+        return False
+
+    async def is_member(ctx):
+        if config.team_member_role_id in [role.id for role in ctx.author.roles]:
+            return True
+        return False
+
     @commands.group(name='player')
     async def _player(self, ctx):
         if ctx.invoked_subcommand is None:
@@ -126,6 +136,7 @@ class Teams(commands.Cog):
         await ctx.send(embed=embed)
 
     @_team.command(name='add')
+    @commands.check(is_captain)
     async def _team_add(self, ctx, member: discord.Member):
         if isinstance(member, discord.Member):
             player = await Player(ctx, ctx.author)
@@ -142,6 +153,7 @@ class Teams(commands.Cog):
             await ctx.send(embed=embed)
 
     @_team.command(name='remove')
+    @commands.check(is_captain)
     async def _team_remove(self, ctx, member: discord.Member):
         if isinstance(member, discord.Member):
             player = await Player(ctx, ctx.author)
@@ -159,6 +171,7 @@ class Teams(commands.Cog):
             await ctx.send(embed=embed)
 
     @_team.command(name='leave')
+    @commands.check(is_member)
     async def _team_leave(self, ctx):
         player = await Player(ctx, ctx.author)
         elevate = Elevate(ctx)
@@ -202,6 +215,7 @@ class Teams(commands.Cog):
             await ctx.send(embed=embed)
 
     @_team.group(name='edit')
+    @commands.check(is_captain)
     async def _team_edit(self, ctx):
         if ctx.invoked_subcommand is None:
             pass

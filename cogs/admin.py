@@ -7,7 +7,7 @@ from discord.ext import commands
 
 from botToken import rp_gg_base, rp_gg_token
 import config
-from custom_functions import dbselect, dbupdate, dbselect_all
+from custom_functions import dbselect, dbupdate, dbselect_all, chunks
 from custom_objects import Player, Team, Match
 
 class Admin(commands.Cog):
@@ -21,8 +21,10 @@ class Admin(commands.Cog):
 
     @commands.command(name='test')
     async def _test(self, ctx):
-        results = await dbselect_all('data.db', "SELECT * FROM players", ())
-        print(results)
+        results = await dbselect_all('data.db', "SELECT ID, MMR FROM players WHERE MMR<1600", ())
+        formatted = await chunks(results, 2)
+        message_data = '\n'.join([str(result) for result in formatted])
+        await ctx.send("```\n" + message_data + "\n```")
 
     @commands.command(name="purge")
     async def _purge(self, ctx, amount: int):

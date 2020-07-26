@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 
 import aiohttp
 import discord
@@ -6,20 +7,60 @@ from discord.ext import commands, tasks
 
 import config
 from botToken import rp_gg_base, rp_gg_token
-from custom_functions import dbselect, dbupdate
-from custom_objects import DBInsert, Invite
+from custom_functions import dbselect, dbupdate, dbselect_all
+from custom_objects import DBInsert, Invite, Elevate
 
 class Events(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.mmr_cycle.start()
+        self.timeout_scan.start()
 
     def cog_unload(self):
         self.mmr_cycle.cancel()
+        self.timeout_scan.cancel()
 
     @tasks.loop(minutes=1)
     async def timeout_scan(self):
+        print("Starting scan.")
+        now = datetime.now()
         await self.bot.wait_until_ready()
+        series_ids = await dbselect_all('data.db', "SELECT ID FROM matches WHERE Complete=?", (0,))
+        series_timeouts = await dbselect_all('data.db', "SELECT Timeout FROM matches WHERE Complete=?", (0,))
+        invite_ids = await dbselect_all('data.db', "SELECT ID FROM invites", ())
+        invite_timeouts = await dbselect_all('data.db', "SELECT Timeout FROM invites", ())
+        series_timeouts = [datetime.strptime(timeout, "%m/%d/%Y %I:%M%p") for timeout in series_timeouts]
+        invite_timeouts = [datetime.strptime(timeout, "%m/%d/%Y %I:%M%p") for timeout in invite_timeouts]
+        guild = self.bot.get_guild(config.server_id)
+        channel = guild.text_channels[0]
+        message = await channel.history(limit=1).flatten()
+        ctx = await self.bot.get_context(message[0])
+        server = Elevate(ctx)
+        for identifier, timeout in zip(invite_ids, invite_timeouts):
+            if timeout < now:
+                await dbupdate('data.db', "DELETE FROM invites WHERE ID=?", (identifier,))
+                try:
+                    invite = await Invite(ctx, identifier)
+                    players = invite.challenger.members + invite.challenged.members
+                    players = [member.mention for member in players]
+                    embed = discord.Embed(color=invite.challenger.color, description=f"It appears the invite sent from {str(challenger)} to {str(challenged)} has timed out.")
+                    await server.channels.challenge.send(content=','.join(players), embed=embed)
+                    await server.channels.mod_logs.send(embed=embed)
+                except Exception as e:
+                    print(e)
+        for identifier, timeout in zip(series_ids, series_timeouts):
+            if timeout < now:
+                await dbupdate('data.db', "DELETE FROM matches WHERE ID=?", (identifier,))
+                try:
+                    invite = await Invite(ctx, identifier)
+                    players = invite.challenger.members + invite.challenged.members
+                    players = [member.mention for member in players]
+                    embed = discord.Embed(color=invite.challenger.color, description=f"It appears the match {str(challenged)} accepted to play against {str(challenger)} has timed out.")
+                    await server.channels.challenge.send(content=','.join(players), embed=embed)
+                    await server.channels.mod_logs.send(embed=embed)
+                except Exception as e:
+                    print(e)
+
 
     @tasks.loop(seconds=1)
     async def mmr_cycle(self):

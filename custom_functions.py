@@ -61,6 +61,10 @@ async def dbupdate(db, sql, variables):  # Helper function for updating informat
     await cursor.close()
     await db.close()
 
+async def chunks(lst, length):
+    length = max(1, length)
+    return list(lst[i:i+length] for i in range(0, len(lst), length))
+
 async def is_in_database(*, sql):
     check = await dbselect('data.db', sql, ())
     if check is None:

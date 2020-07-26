@@ -526,8 +526,8 @@ class DBInsert(object):
         await dbupdate('data.db', "INSERT INTO teams (ID, Abbreviation, Name, Player1, Player2, Player3, Player4, Player5, LastGame, MMR, Average, Tier, Wins, Losses, Logo, Color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (team_id, name.upper()[:4], name.title(), ctx.author.id, None, None, None, None, None, 2000, player.mmr, tier, 0, 0, config.elevate_logo, discord.Color.default().value,))
 
     async def invite(ctx, challenged):
-        invite_id = await dbselect('data.db', "SELECT count(*) FROM invites", ())
-        invite_id += 1
+        await dbupdate('data.db', "UPDATE stats SET invites=invites+1")
+        invite_id = await dbselect('data.db', "SELECT invites FROM stats", ())
 
         inviter = await Player(ctx, ctx.author)
         challenger = inviter.team
@@ -580,6 +580,7 @@ class Channel_Objects(object):
         self.error = get(ctx.guild.text_channels, id=config.error_channel)
         self.db_backup = get(ctx.guild.text_channels, id=config.db_backup_channel)
         self.challenge = get(ctx.guild.text_channels, id=config.challenge_channel)
+        self.mod_logs = get(ctx.guild.text_channels, id=config.mod_channel)
         
 class Elevate(object):
     def __init__(self, ctx):
