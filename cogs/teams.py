@@ -1,13 +1,12 @@
 import typing
 import asyncio
 
-import gspread_asyncio
 import discord
 from discord.ext import commands
 
 import config
 from custom_objects import Player, DBInsert, Elevate, Team, Match
-from custom_functions import dbupdate, dbselect, get_creds, gspread_update
+from custom_functions import dbupdate, dbselect
 from errors import PlayerError, TeamError, InappropriateError
 
 class Teams(commands.Cog):
@@ -23,6 +22,11 @@ class Teams(commands.Cog):
         if config.team_member_role_id in [role.id for role in ctx.author.roles]:
             return True
         return False
+
+    @commands.command(name='leaderboard', aliases=['lb'])
+    async def _leaderboard(self, ctx):
+        embed = discord.Embed(color=0x00ffff, description=f'For the time being, the leaderboard can be found on [this](http://159.65.35.63:5000/) website. However it will be migrated shortly.')
+        await ctx.send(embed=embed)
 
     @commands.group(name='player')
     async def _player(self, ctx):
@@ -116,103 +120,101 @@ class Teams(commands.Cog):
 
     @_team.command(name='create')
     async def _team_create(self, ctx, *, team_name):
-        if config.team_member_role_id in [role.id for role in ctx.author.roles]:
-            raise PlayerError("You already belong to a team.")
-        
-        await DBInsert.team(ctx, team_name)
+        async with ctx.channel.typing():
+            if config.team_member_role_id in [role.id for role in ctx.author.roles]:
+                raise PlayerError("You already belong to a team.")
+            
+            await DBInsert.team(ctx, team_name)
 
-        elevate = Elevate(ctx)
+            elevate = Elevate(ctx)
 
-        player = await Player(ctx, ctx.author)
+            player = await Player(ctx, ctx.author)
+            team = player.team
 
-        await player.team.save()
+            await team.save()
 
-        await player.member.add_roles(elevate.roles.team_captain, elevate.roles.team_member)
+            await player.member.add_roles(elevate.roles.team_captain, elevate.roles.team_member)
 
-        embed = discord.Embed(color=player.team.color, description=f"Your team was registered.\n{str(player.team)}")
+            embed = discord.Embed(color=team.color, description=f"Your team was registered.\n{str(team)}")
 
-        await player.member.edit(nick=f'{player.team.abbreviation} | {player.member.name}')
+            await player.member.edit(nick=f'{team.abbreviation} | {player.member.name}')
 
-        await ctx.send(embed=embed)
+            await ctx.send(embed=embed)
 
     @_team.command(name='add')
     @commands.check(is_captain)
     async def _team_add(self, ctx, member: discord.Member):
-        if isinstance(member, discord.Member):
-            player = await Player(ctx, ctx.author)
-            member = await Player(ctx, member)
+        async with ctx.channel.typing():
+            if isinstance(member, discord.Member):
+                player = await Player(ctx, ctx.author)
+                member = await Player(ctx, member)
 
-            await player.team.add(member)
+                await player.team.add(member)
 
-            elevate = Elevate(ctx)
+                elevate = Elevate(ctx)
 
-            await member.member.add_roles(elevate.roles.team_member)
-            await member.member.edit(nick=f'{player.team.abbreviation} | {member.member.name}')
+                await member.member.add_roles(elevate.roles.team_member)
+                await member.member.edit(nick=f'{player.team.abbreviation} | {member.member.name}')
 
-            embed = discord.Embed(color=player.team.color, description=f"{member.member.mention} has been added to {str(player.team)}")
-            await ctx.send(embed=embed)
+                embed = discord.Embed(color=player.team.color, description=f"{member.member.mention} has been added to {str(player.team)}")
+                await ctx.send(embed=embed)
 
     @_team.command(name='remove')
     @commands.check(is_captain)
     async def _team_remove(self, ctx, member: discord.Member):
-        if isinstance(member, discord.Member):
-            player = await Player(ctx, ctx.author)
-            member = await Player(ctx, member)
+        async with ctx.channel.typing():
+            if isinstance(member, discord.Member):
+                player = await Player(ctx, ctx.author)
+                member = await Player(ctx, member)
 
-            await member.member.edit(nick=None)
+                await member.member.edit(nick=None)
 
-            await player.team.sub(member)
+                await player.team.remove(member)
 
-            elevate = Elevate(ctx)
+                elevate = Elevate(ctx)
 
-            await member.member.remove_roles(elevate.roles.team_member)
+                await member.member.remove_roles(elevate.roles.team_member)
 
-            embed = discord.Embed(color=player.team.color, description=f"{member.member.mention} has been removed from {str(player.team)}")
-            await ctx.send(embed=embed)
+                embed = discord.Embed(color=player.team.color, description=f"{member.member.mention} has been removed from {str(player.team)}")
+                await ctx.send(embed=embed)
 
     @_team.command(name='leave')
     @commands.check(is_member)
     async def _team_leave(self, ctx):
-        player = await Player(ctx, ctx.author)
-        elevate = Elevate(ctx)
-        if elevate.roles.team_captain in player.member.roles:
-            await player.member.remove_roles(elevate.roles.team_captain, elevate.roles.team_member)
-            await player.member.edit(nick=None)
+        async with ctx.channel.typing():
+            player = await Player(ctx, ctx.author)
+            elevate = Elevate(ctx)
+            if elevate.roles.team_captain in player.member.roles:
+                await player.member.remove_roles(elevate.roles.team_captain, elevate.roles.team_member)
+                await player.member.edit(nick=None)
 
-            if len(player.team.members) == 1:
-                embed = discord.Embed(color=player.team.color, description=f"You have been removed from {str(player.team)}\nYou were the only player on the team. So it was deleted.")
+                if len(player.team.members) == 1:
+                    embed = discord.Embed(color=player.team.color, description=f"You have been removed from {str(player.team)}\nYou were the only player on the team. So it was deleted.")
 
-                agcm = gspread_asyncio.AsyncioGspreadClientManager(get_creds)
-                sheet = await gspread_update(agcm)
+                    await dbupdate('data.db', "DELETE FROM teams WHERE ID=?", (player.team.id,))
+                    await player.set_team(None)
 
-                team_id_cell = sheet.find(str(player.team.id))
-                team_cell = team_id_cell.row
-                sheet.delete_row(team_cell)
+                    await ctx.send(embed=embed)
+                
+                else:
+                    embed = discord.Embed(color=player.team.color, description=f"You have been removed from {str(player.team)}")
 
-                await dbupdate('data.db', "DELETE FROM teams WHERE ID=?", (player.team.id,))
-                await player.set_team(None)
+                    await player.team.members[1].add_roles(elevate.roles.team_captain)
+                    await player.team.sub(player)
+                    await player.set_team(None)
+                    await player.member.edit(nick=None)
 
-                await ctx.send(embed=embed)
-            
+                    await ctx.send(embed=embed)
             else:
                 embed = discord.Embed(color=player.team.color, description=f"You have been removed from {str(player.team)}")
 
-                await player.team.members[1].add_roles(elevate.roles.team_captain)
-                await player.team.sub(player)
-                await player.set_team(None)
+                await player.member.remove_roles(elevate.roles.team_member)
                 await player.member.edit(nick=None)
 
+                await player.team.sub(player)
+                await player.set_team(None)
+
                 await ctx.send(embed=embed)
-        else:
-            embed = discord.Embed(color=player.team.color, description=f"You have been removed from {str(player.team)}")
-
-            await player.member.remove_roles(elevate.roles.team_member)
-            await player.member.edit(nick=None)
-
-            await player.team.sub(player)
-            await player.set_team(None)
-
-            await ctx.send(embed=embed)
 
     @_team.group(name='edit')
     @commands.check(is_captain)

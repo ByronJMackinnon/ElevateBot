@@ -3,10 +3,6 @@ import typing
 import asyncio
 
 # 3rd Party Imports
-import requests_async as requests
-
-from oauth2client.service_account import ServiceAccountCredentials
-
 import aiosqlite
 import discord
 from discord.utils import get
@@ -132,24 +128,3 @@ async def raw_color(color): # Returns raw integer value from most typed of color
     
     print("Color passed all checks.", type(color), color)
     return color
-
-def get_creds():
-    return ServiceAccountCredentials.from_json_keyfile_name("elevate-creds.json", 
-        [
-            "https://spreadsheets.google.com/feeds",
-            "https://www.googleapis.com/auth/drive",
-            "https://www.googleapis.com/auth/spreadsheets",
-        ]
-    )
-
-async def gspread_update(agcm):
-    agc = await agcm.authorize()
-
-    ss = await agc.open("Elevate")
-    sheet = ss.sheet1
-
-    return sheet
-
-
-
-    

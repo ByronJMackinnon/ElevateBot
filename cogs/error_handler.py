@@ -6,6 +6,7 @@ from discord.ext import commands
 
 import config
 from errors import TeamError, CodeError, PlayerError, InappropriateError
+from custom_objects import Elevate
 
 class ErrorHandler(commands.Cog):
     def __init__(self, bot):
@@ -13,6 +14,8 @@ class ErrorHandler(commands.Cog):
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
+        await ctx.message.add_reaction(config.cross_emoji)
+
         print('Ignoring exception in command {}:'.format(ctx.command), file=sys.stderr)
         traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
 
@@ -45,6 +48,12 @@ class ErrorHandler(commands.Cog):
             mod_embed.set_footer(text=f'{ctx.author.name}#{ctx.author.discriminator} | ID: {ctx.author.id}', icon_url=self.bot.user.avatar_url)
 
             await mod_channel.send(embed=mod_embed)
+
+        else:
+            embed = discord.Embed(title="Unhandled Error", color=0xff0000, description='```\n' + f'{str(error)}' + '\n```')
+            embed.add_field(name='Additional Info', value=f'Member: {ctx.author.mention}\nCommand: {ctx.command.qualified_name}\nChannel: {ctx.channel.mention}\n[Jump Link]({ctx.message.jump_url})')
+            server = Elevate(ctx)
+            await server.channels.error.send(embed=embed)
 
 def setup(bot):
     bot.add_cog(ErrorHandler(bot))

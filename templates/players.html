@@ -1,0 +1,31 @@
+{% extends "layout.html" %}
+{% block content %}
+    <body>
+        <h1>Players</h1>
+
+        <table class="searchable sortable" border = 1>
+            <thead>
+                <tr>
+                    <th>Logo</th>
+                    <th>Name</th>
+                    <th>MMR</th>
+                    <th>Team</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                    <tr>
+                        <td>
+                            <a href={{row["Logo"]}} target="_blank">
+                                <img src={{row["Logo"]}} width="75" height="75">
+                            </a>
+                        </td>
+                        <td>{{row["Name"]}}</td>
+                        <td>{{row["MMR"]}}</td>
+                        <td>{{row["Team_Name"]}}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </body>
+{% endblock content %}

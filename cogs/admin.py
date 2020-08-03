@@ -7,7 +7,7 @@ from discord.ext import commands
 
 from botToken import rp_gg_base, rp_gg_token
 import config
-from custom_functions import dbselect, dbupdate, dbselect_all, chunks
+from custom_functions import dbselect, dbupdate, dbselect_all, chunks, is_in_database
 from custom_objects import Player, Team, Match
 
 class Admin(commands.Cog):
@@ -18,6 +18,11 @@ class Admin(commands.Cog):
         if config.admin_role_id in [role.id for role in ctx.author.roles]:
             return True
         return False
+
+    @commands.command(name='temp')
+    async def _temp(self, ctx):
+        for member in ctx.guild.members:
+            await dbupdate('data.db', "UPDATE players SET Name=? WHERE ID=?", (f'{member.name}#{member.discriminator}', member.id,))
 
     @commands.command(name='test')
     async def _test(self, ctx):
@@ -45,6 +50,91 @@ class Admin(commands.Cog):
     @commands.command(name="echo")
     async def _echo(self, ctx, destination: typing.Union[discord.Member, discord.TextChannel], *, msg):
         await destination.send(msg)
+
+    @commands.group(name='set')
+    async def _set(self, ctx):
+        if ctx.invoked_subcommand is None:
+            pass
+    
+    @_set.command(name="wins")
+    async def _set_wins(self, ctx, team: typing.Union[discord.Member, int, str], newWins):
+        if isinstance(team, discord.Member):
+            player = await Player(ctx, team)
+            team = player.team
+
+        elif isinstance(team, int):
+            team = await Team(ctx, team)
+
+        elif isinstance(team, str):
+            if await is_in_database(sql=f'SELECT ID FROM teams WHERE Name={team.title()}'):
+                team_id = await dbselect('data.db', "SELECT ID FROM teams WHERE Name=?", (team.title(),))
+                team = await Team(ctx, team_id)
+            else:
+                raise TeamError("No team was found by that name.")
+
+        if isinstance(team, Team):
+            pass
+
+        else:
+            raise TeamError("There was an error with the team mentioned. Please enter a member, team id, or the team name.")
+
+        await dbupdate('data.db', "UPDATE teams SET Wins=? WHERE ID=?", (newWins, team.id,))
+        embed = discord.Embed(color=0x00ff00, description='Wins have been updated.')
+        await ctx.send(embed=embed, delete_after=5)
+
+    @_set.command(name="losses")
+    async def _set_losses(self, ctx, team: typing.Union[discord.Member, int, str], newLosses):
+        if isinstance(team, discord.Member):
+            player = await Player(ctx, team)
+            team = player.team
+
+        elif isinstance(team, int):
+            team = await Team(ctx, team)
+
+        elif isinstance(team, str):
+            if await is_in_database(sql=f'SELECT ID FROM teams WHERE Name={team.title()}'):
+                team_id = await dbselect('data.db', "SELECT ID FROM teams WHERE Name=?", (team.title(),))
+                team = await Team(ctx, team_id)
+            else:
+                raise TeamError("No team was found by that name.")
+
+        if isinstance(team, Team):
+            pass
+
+        else:
+            raise TeamError("There was an error with the team mentioned. Please enter a member, team id, or the team name.")
+
+        await dbupdate('data.db', "UPDATE teams SET Losses=? WHERE ID=?", (newLosses, team.id,))
+        embed = discord.Embed(color=0x00ff00, description='Losses have been updated.')
+        await ctx.send(embed=embed, delete_after=5)
+
+    @_set.command(name='logo')
+    async def _set_losses(self, ctx, team: typing.Union[discord.Member, int, str], newLogo = None):
+        if isinstance(team, discord.Member):
+            player = await Player(ctx, team)
+            team = player.team
+
+        elif isinstance(team, int):
+            team = await Team(ctx, team)
+
+        elif isinstance(team, str):
+            if await is_in_database(sql=f'SELECT ID FROM teams WHERE Name={team.title()}'):
+                team_id = await dbselect('data.db', "SELECT ID FROM teams WHERE Name=?", (team.title(),))
+                team = await Team(ctx, team_id)
+            else:
+                raise TeamError("No team was found by that name.")
+
+        if isinstance(team, Team):
+            pass
+
+        else:
+            raise TeamError("There was an error with the team mentioned. Please enter a member, team id, or the team name.")
+
+        if newLogo is None:
+            await dbupdate('data.db', "UPDATE teams SET Logo=? WHERE ID=?", (config.elevate_logo, team.id,))
+
+        else:
+            await dbupdate('data.db', "UPDATE teams SET Logo=? WHERE ID=?", (newLogo, team.id,))
 
     @commands.group(name='db')
     async def _db(self, ctx):

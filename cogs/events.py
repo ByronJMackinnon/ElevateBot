@@ -7,8 +7,8 @@ from discord.ext import commands, tasks
 
 import config
 from botToken import rp_gg_base, rp_gg_token
-from custom_functions import dbselect, dbupdate, dbselect_all
-from custom_objects import DBInsert, Invite, Elevate
+from custom_functions import dbselect, dbupdate, dbselect_all, is_in_database
+from custom_objects import DBInsert, Invite, Elevate, Team
 
 class Events(commands.Cog):
     def __init__(self, bot):
@@ -25,69 +25,79 @@ class Events(commands.Cog):
         print("Starting scan.")
         now = datetime.now()
         await self.bot.wait_until_ready()
-        series_ids = await dbselect_all('data.db', "SELECT ID FROM matches WHERE Complete=?", (0,))
-        series_timeouts = await dbselect_all('data.db', "SELECT Timeout FROM matches WHERE Complete=?", (0,))
-        invite_ids = await dbselect_all('data.db', "SELECT ID FROM invites", ())
-        invite_timeouts = await dbselect_all('data.db', "SELECT Timeout FROM invites", ())
-        series_timeouts = [datetime.strptime(timeout, "%m/%d/%Y %I:%M%p") for timeout in series_timeouts]
-        invite_timeouts = [datetime.strptime(timeout, "%m/%d/%Y %I:%M%p") for timeout in invite_timeouts]
-        guild = self.bot.get_guild(config.server_id)
-        channel = guild.text_channels[0]
-        message = await channel.history(limit=1).flatten()
-        ctx = await self.bot.get_context(message[0])
-        server = Elevate(ctx)
-        for identifier, timeout in zip(invite_ids, invite_timeouts):
-            if timeout < now:
-                await dbupdate('data.db', "DELETE FROM invites WHERE ID=?", (identifier,))
-                try:
-                    invite = await Invite(ctx, identifier)
-                    players = invite.challenger.members + invite.challenged.members
-                    players = [member.mention for member in players]
-                    embed = discord.Embed(color=invite.challenger.color, description=f"It appears the invite sent from {str(challenger)} to {str(challenged)} has timed out.")
-                    await server.channels.challenge.send(content=','.join(players), embed=embed)
-                    await server.channels.mod_logs.send(embed=embed)
-                except Exception as e:
-                    print(e)
-        for identifier, timeout in zip(series_ids, series_timeouts):
-            if timeout < now:
-                await dbupdate('data.db', "DELETE FROM matches WHERE ID=?", (identifier,))
-                try:
-                    invite = await Invite(ctx, identifier)
-                    players = invite.challenger.members + invite.challenged.members
-                    players = [member.mention for member in players]
-                    embed = discord.Embed(color=invite.challenger.color, description=f"It appears the match {str(challenged)} accepted to play against {str(challenger)} has timed out.")
-                    await server.channels.challenge.send(content=','.join(players), embed=embed)
-                    await server.channels.mod_logs.send(embed=embed)
-                except Exception as e:
-                    print(e)
+        try:
+            series_ids = await dbselect_all('data.db', "SELECT ID FROM matches WHERE Complete=?", (0,))
+            series_timeouts = await dbselect_all('data.db', "SELECT Timeout FROM matches WHERE Complete=?", (0,))
+            invite_ids = await dbselect_all('data.db', "SELECT ID FROM invites", ())
+            invite_timeouts = await dbselect_all('data.db', "SELECT Timeout FROM invites", ())
+            series_timeouts = [datetime.strptime(timeout, "%m/%d/%Y %I:%M%p") for timeout in series_timeouts]
+            invite_timeouts = [datetime.strptime(timeout, "%m/%d/%Y %I:%M%p") for timeout in invite_timeouts]
+            guild = self.bot.get_guild(config.server_id)
+            channel = guild.text_channels[0]
+            message = await channel.history(limit=1).flatten()
+            ctx = await self.bot.get_context(message[0])
+            server = Elevate(ctx)
+            for identifier, timeout in zip(invite_ids, invite_timeouts):
+                if timeout < now:
+                    await dbupdate('data.db', "DELETE FROM invites WHERE ID=?", (identifier,))
+                    try:
+                        invite = await Invite(ctx, identifier)
+                        players = invite.challenger.members + invite.challenged.members
+                        players = [member.mention for member in players]
+                        embed = discord.Embed(color=invite.challenger.color, description=f"It appears the invite sent from {str(challenger)} to {str(challenged)} has timed out.")
+                        await server.channels.challenge.send(content=','.join(players), embed=embed)
+                        await server.channels.mod_logs.send(embed=embed)
+                    except Exception as e:
+                        print(e)
+            for identifier, timeout in zip(series_ids, series_timeouts):
+                if timeout < now:
+                    await dbupdate('data.db', "DELETE FROM matches WHERE ID=?", (identifier,))
+                    try:
+                        invite = await Invite(ctx, identifier)
+                        players = invite.challenger.members + invite.challenged.members
+                        players = [member.mention for member in players]
+                        embed = discord.Embed(color=invite.challenger.color, description=f"It appears the match {str(challenged)} accepted to play against {str(challenger)} has timed out.")
+                        await server.channels.challenge.send(content=','.join(players), embed=embed)
+                        await server.channels.mod_logs.send(embed=embed)
+                    except Exception as e:
+                        print(e)
+        except Exception as e:
+            print(e)
 
 
     @tasks.loop(seconds=1)
     async def mmr_cycle(self):
         await self.bot.wait_until_ready()
         guild = self.bot.get_guild(config.server_id)
-        bman = guild.get_member(config.bman_id)
         for member in guild.members:
             if member.bot:
                 pass
             else:
                 error_occured = False
-                current_mmr, api_id = await dbselect('data.db', "SELECT MMR, API_ID FROM players WHERE ID=?", (member.id,))
-                if api_id == None:
-                    pass
-                else:
-                    headers = {'Authorization': rp_gg_token}
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(f'{rp_gg_base}/skills/get-player-skill?PlayerID={api_id}', headers=headers) as mmr_resp:
-                            mmr_js = await mmr_resp.json()
-                            player_mmr_list = mmr_js['Result']['Skills']
-                            my_item = next((item for item in player_mmr_list if item["Playlist"] == 13), None)
-                            player_mmr_raw = my_item["MMR"]
-                            player_mmr = round((float(player_mmr_raw) * 20) + 100)
-                            print(f'{member.name}#{member.discriminator} - MMR Now: {type(player_mmr)} MMR Before: {type(current_mmr)}')
-                            await dbupdate('data.db', "UPDATE players SET MMR=? WHERE ID=?", (player_mmr, member.id,))
-                            delay = 3600 // guild.member_count
-                            await asyncio.sleep(delay)
+                try:
+                    current_mmr, api_id = await dbselect('data.db', "SELECT MMR, API_ID FROM players WHERE ID=?", (member.id,))
+                    if api_id == None:
+                        pass
+                    else:
+                        headers = {'Authorization': rp_gg_token}
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(f'{rp_gg_base}/skills/get-player-skill?PlayerID={api_id}', headers=headers) as mmr_resp:
+                                mmr_js = await mmr_resp.json()
+                                player_mmr_list = mmr_js['Result']['Skills']
+                                my_item = next((item for item in player_mmr_list if item["Playlist"] == 13), None)
+                                player_mmr_raw = my_item["MMR"]
+                                player_mmr = round((float(player_mmr_raw) * 20) + 100)
+                                print(f'{member.name}#{member.discriminator} - MMR Now: {type(player_mmr)} MMR Before: {type(current_mmr)}')
+                                await dbupdate('data.db', "UPDATE players SET MMR=? WHERE ID=?", (player_mmr, member.id,))
+                                delay = 3600 // guild.member_count
+                                await asyncio.sleep(delay)
+                except Exception as e:
+                    print(e)
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before, after):
+        if f'{before.name}#{before.discriminator}' != f'{after.name}#{after.discriminator}':
+            await dbupdate('data.db', "UPDATE players SET Name=? WHERE ID=?", (f'{after.name}#{after.discriminator}', after.id,))
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
@@ -120,6 +130,9 @@ class Events(commands.Cog):
     async def on_member_join(self, member):
         await DBInsert.player(member)
 
+    @commands.Cog.listener()
+    async def on_command_completion(self, ctx):
+        await ctx.message.add_reaction(config.checkmark_emoji)
 
 
 def setup(bot):

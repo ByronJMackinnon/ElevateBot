@@ -1,13 +1,13 @@
 from datetime import datetime, timedelta
 import typing
 import asyncio
+import json
 
-import gspread_asyncio
 import discord
 from discord.utils import get
 
 import config
-from custom_functions import dbselect, dbupdate, is_in_database, calc_mmr_match_value, raw_color, get_creds, gspread_update
+from custom_functions import dbselect, dbupdate, is_in_database, calc_mmr_match_value, raw_color
 from errors import TeamError, CodeError, InappropriateError
 
 #INFO ----------------------------------------------------------------------------
@@ -40,7 +40,7 @@ class Player(object):
         else:
             raise CodeError(f"Couldn't create a class instance for {identifier}")
 
-        mmr, team, logo, api_id, color = await dbselect('data.db', "SELECT MMR, Team, Logo, API_ID, Color FROM players WHERE ID=?", (identifier.id,))
+        _, name, mmr, team, logo, api_id, color, _ = await dbselect('data.db', "SELECT * FROM players WHERE ID=?", (identifier.id,))
 
         if team is None:
             team = None
@@ -59,6 +59,7 @@ class Player(object):
         
         obj = object().__new__(cls)
         object.__setattr__(obj, 'ctx', ctx)
+        object.__setattr__(obj, 'name', f'{identifier.name}#{identifier.discriminator}')
         object.__setattr__(obj, 'member', identifier)
         object.__setattr__(obj, 'mmr', mmr)
         object.__setattr__(obj, 'team', team)
@@ -70,7 +71,16 @@ class Player(object):
     async def save(self):
         self.color = await raw_color(self.color)
 
-        await dbupdate('data.db', "UPDATE players SET MMR=?, Team=?, Logo=?, Color=? WHERE ID=?", (self.mmr, self.team, self.logo, self.color, self.member.id,))
+        team_id = None
+
+        if isinstance(self.team, Team):
+            team_id = self.team.id
+        
+        elif isinstance(self.team, int):
+            team_id = self.team
+            self.team = await Team(team_id)
+
+        await dbupdate('data.db', "UPDATE players SET MMR=?, Team=?, Logo=?, Color=?, Team_Name=? WHERE ID=?", (self.mmr, team_id, self.logo, self.color, f'[{self.team.abbreviation}] | {self.team.name}', self.member.id,))
 
     async def set_logo(self, link):
         self.logo = link
@@ -115,16 +125,8 @@ class Team(object):
         String that represents the Teams Name
     Abbreviation: :class:`str`
         String that represents the Teams Abbreviation (Max letters = 4) ex. [APEX]
-    player1: class:`discord.Member`
-        Player object that represents the captain of the team.
-    player2: class:`discord.Member`
-        Player object that represents the 2nd player of the team.
-    player3: class:`discord.Member`
-        Player object that represents the 3rd player of the team.
-    player4: class:`discord.Member`
-        Player object that represents the 4th player of the team
-    player5: class:`discord.Member`
-        Player object that represents the 5th player of the team.
+    players: class:`list`
+        List object holding all player ids.
     last_game: class:`datetime`
         Datetime object of when the last match was played/reported.
     mmr: :class:`int`
@@ -143,27 +145,11 @@ class Team(object):
         discord.Color object. This is for embeds.
     """
     async def __new__(cls, ctx, team_id):
-        team_id, abbrev, name, p1, p2, p3, p4, p5, last_game, mmr, average, tier, wins, losses, logo, color = await dbselect('data.db', "SELECT * FROM teams WHERE ID=?", (team_id,))
-
-        slots = [p1, p2, p3, p4, p5]
-
-        ids = list(filter(None, [p1, p2, p3, p4, p5]))  # Removes any None values.
-
-        ids = [get(ctx.guild.members, id=member) for member in ids]  # Converts any IDs pulled into Member Objects.
+        team_id, abbrev, name, slots, last_game, mmr, average, tier, wins, losses, logo, color, clean_players = await dbselect('data.db', "SELECT * FROM teams WHERE ID=?", (team_id,))
 
         if last_game is not None:
             last_game = datetime.strptime(last_game, "%m/%d/%Y %I:%M%p")  # Returns a Datetime object from String (pulled from database.)
 
-        obj = object().__new__(cls)
-
-        object.__setattr__(obj, 'player1', p1)
-        object.__setattr__(obj, 'player2', p2)
-        object.__setattr__(obj, 'player3', p3)  # This creates all of the players (even none values.)
-        object.__setattr__(obj, 'player4', p4)
-        object.__setattr__(obj, 'player5', p5)
-
-        for i in range(len(ids)):
-            object.__setattr__(obj, f'player{i+1}', ids[i])  # Overwrites any Non-None values. Leave None as such
 
         if color is None:
             color = discord.Color().default
@@ -177,15 +163,20 @@ class Team(object):
 
         eligible = False
 
-        if len(ids) >= 3:
+        slots = json.loads(slots)
+
+        members = [get(ctx.guild.members, id=player_id) for player_id in slots]
+
+        if len(members) >= 3:
             eligible = True
 
+        obj = object().__new__(cls)
         object.__setattr__(obj, 'slots', slots)
         object.__setattr__(obj, 'ctx', ctx)
         object.__setattr__(obj, 'id', team_id)
         object.__setattr__(obj, 'abbreviation', abbrev)
         object.__setattr__(obj, 'name', name)
-        object.__setattr__(obj, 'members', ids)
+        object.__setattr__(obj, 'members', members)
         object.__setattr__(obj, 'last_game', last_game)
         object.__setattr__(obj, 'mmr', mmr)
         object.__setattr__(obj, 'average', average)
@@ -200,92 +191,66 @@ class Team(object):
     def __str__(self):
         return f"**[{self.abbreviation}]** | {self.name}"
 
-    async def add(self, amount):
-        if isinstance(amount, int):
+    async def players(self):
+        return [await Player(member) for member in self.members]
+
+    async def add(self, added):
+        if isinstance(added, int):
             self.wins += 1
-            self.mmr += amount
+            self.mmr += added
             
             await self.save()
 
-        elif isinstance(amount, Player):
+        elif isinstance(added, Player):
             print(self.slots)
-            players = list(filter(None, self.slots))
-            print(players)
 
-            if amount.member in self.members:
-                raise TeamError(f"That player is already on this team. Unable to add them again.\nPlayer: {amount.member.mention}\nTeam: {str(self)}")
+            if added.member in self.members:
+                raise TeamError(f"That player is already on this team. Unable to add them again.\nPlayer: {added.member.mention}\nTeam: {str(self)}")
 
-            if amount.team is not None:
+            if added.team is not None:
                 raise TeamError(f'That player is already on a team. They would have to leave that team before joining another.')
 
-            if len(players) < 5:
-                players.append(amount.member.id)
-            elif len(players) == 5:
+            if len(self.slots) < 5:
+                self.slots.append(added.member.id)
+                self.members.append(added.member)
+            elif len(self.slots) == 5:
                 raise TeamError("This team has already reached the maximum players allowed. (5)")
 
             else:
                 raise CodeError(f"Critical Error. Team: {str(self)} has more than 5 players. Currently set to {len(self.slots)}. Please reference database immediately.\nTeam ID: {self.id}")
 
-            while len(players) < 5:
-                players.append(None)
-
-            self.slots = players
-            await amount.set_team(self.id)
+            await added.set_team(self.id)
             await self.save()
         
         else:
-            raise CodeError(f"Unsupported addition with a Team object.\nType: {type(amount)} Value: {amount}")
+            raise CodeError(f"Unsupported addition with a Team object.\nType: {type(added)} Value: {added}")
 
-    async def sub(self, amount):
-        if isinstance(amount, int):
+    async def remove(self, removed):
+        if isinstance(removed, int):
             self.losses += 1
-            self.mmr -= amount
+            self.mmr -= removed
 
             await self.save()
 
-        elif isinstance(amount, Player):
-            if amount.member.id in self.slots:
-                self.slots.remove(amount.member.id)
-                self.slots.append(None)
+        elif isinstance(removed, Player):
+            if removed.member.id in self.slots:
+                self.slots.remove(removed.member.id)
+                self.members.remove(removed.member)
                 
-                await amount.set_team(None)
+                await removed.set_team(None)
                 await self.save()
 
             else:
-                raise TeamError(f"This player did not show up on this team. Could not remove them.\nPlayer: {amount.member.mention}\nTeam: {str(self)}")
+                raise TeamError(f"This player did not show up on this team. Could not remove them.\nPlayer: {removed.member.mention}\nTeam: {str(self)}")
 
         else:
-            raise CodeError(f"Unsupported subtraction with a Team object.\nType: {type(amount)} Value: {amount}")
+            raise CodeError(f"Unsupported subtraction with a Team object.\nType: {type(removed)} Value: {removed}")
 
 
     async def save(self):  # This saves the current state of the object to the database.
-        agcm = gspread_asyncio.AsyncioGspreadClientManager(get_creds)
-        sheet = await gspread_update(agcm)
-
-        sheet_members = [member.name for member in self.members]
-        while len(sheet_members) < 5:
-            sheet_members.append(None)
-
-        team_values = [str(self.abbreviation), str(self.name), str(sheet_members[0]), str(sheet_members[1]), str(sheet_members[2]), str(sheet_members[3]), str(sheet_members[4]), str(self.mmr)]
-
-        try:
-            team_id_cell = sheet.find(str(self.id))
-            team_cell = team_id_cell.row
-            team_range = f'B{team_cell}:I{team_cell}' #B2:I2
-
-            data = [{
-                "range": f"{team_range}", 
-                "values": [team_values]
-                }]
-
-            sheet.batch_update(data)
-        except Exception as e:
-            team_values = [self.id] + team_values
-            sheet.append_row(team_values)
-
         self.color = await raw_color(self.color)
         
-        await dbupdate('data.db', "UPDATE teams SET Abbreviation=?, Name=?, Player1=?, Player2=?, Player3=?, Player4=?, Player5=?, LastGame=?, MMR=?, Average=?, Tier=?, Wins=?, Losses=?, Logo=?, Color=? WHERE ID=?", (self.abbreviation, self.name, *self.slots, self.last_game, self.mmr, self.average, self.tier, self.wins, self.losses, self.logo, self.color, self.id,))
+        await dbupdate('data.db', "UPDATE teams SET Abbreviation=?, Name=?, Players=?, LastGame=?, MMR=?, Average=?, Tier=?, Wins=?, Losses=?, Logo=?, Color=?, Clean_Players=? WHERE ID=?", (self.abbreviation, self.name, json.dumps(self.slots), self.last_game, self.mmr, self.average, self.tier, self.wins, self.losses, self.logo, self.color, ', '.join([f'{member.name}#{member.discriminator}' for member in self.members]), self.id,))
 
 
     async def set_abbreviation(self, abbreviation):
@@ -494,7 +459,7 @@ class DBInsert(object):
     async def player(member):
         if await is_in_database(sql=f"SELECT ID FROM players WHERE ID={member.id}"):
             return
-        await dbupdate('data.db', "INSERT INTO players (ID, MMR, Team, Logo, API_ID, Color) VALUES (?, ?, ?, ?, ?, ?)", (member.id, None, None, str(member.avatar_url), None, member.color.value,))
+        await dbupdate('data.db', "INSERT INTO players (ID, Name, MMR, Team, Logo, API_ID, Color) VALUES (?, ?, ?, ?, ?, ?, ?)", (member.id, f'{member.name}#{member.discriminator}', None, None, str(member.avatar_url), None, member.color.value,))
 
     async def team(ctx, name):
         if await is_in_database(sql=f"SELECT ID FROM teams WHERE Name='{name.title()}'"):
@@ -506,8 +471,10 @@ class DBInsert(object):
 
         player = await Player(ctx, ctx.author)
 
+        server = Elevate(ctx)
+
         if player.mmr is None:
-            raise PlayerError(f"I'm sorry, you'll have to verify before you can create a team. You can verify here: <#{config.verify_channel}>")
+            raise PlayerError(f"I'm sorry, you'll have to verify before you can create a team. You can verify here: {server.channels.verify.mention}")
 
         team_id = await dbselect('data.db', "SELECT teams FROM stats", ())
         team_id += 1
@@ -523,7 +490,7 @@ class DBInsert(object):
         elif player.mmr < 1600:
             tier = 2
 
-        await dbupdate('data.db', "INSERT INTO teams (ID, Abbreviation, Name, Player1, Player2, Player3, Player4, Player5, LastGame, MMR, Average, Tier, Wins, Losses, Logo, Color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (team_id, name.upper()[:4], name.title(), ctx.author.id, None, None, None, None, None, 2000, player.mmr, tier, 0, 0, config.elevate_logo, discord.Color.default().value,))
+        await dbupdate('data.db', "INSERT INTO teams (ID, Abbreviation, Name, Players, LastGame, MMR, Average, Tier, Wins, Losses, Logo, Color, Clean_Players) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (team_id, name.upper()[:4], name.title(), json.dumps([ctx.author.id]), None, 2000, player.mmr, tier, 0, 0, config.elevate_logo, discord.Color.default().value, f'{ctx.author.name}#{ctx.author.discriminator}',))
 
     async def invite(ctx, challenged):
         await dbupdate('data.db', "UPDATE stats SET invites=invites+1")
